@@ -138,7 +138,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({
             storage_path: storagePath,
             file_url: fileUrl,
             file_size: file.size,
-            summary: summary || `Unit ${selectedUnitNumber} notes for ${subject?.name || 'Class'}`,
+            summary: summary || `Notes for ${subject?.name || 'Class'}`,
             confidence: aiResult?.confidence || 1.0,
           })
           .select()
@@ -156,7 +156,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({
           storage_path: storagePath,
           file_url: fileUrl,
           file_size: file.size,
-          summary: summary || `Unit ${selectedUnitNumber} notes for ${subject?.name}`,
+          summary: summary || `Notes for ${subject?.name}`,
           confidence: aiResult?.confidence || 1.0,
           created_at: new Date().toISOString(),
           subject,
@@ -277,40 +277,22 @@ export const UploadModal: React.FC<UploadModalProps> = ({
             </div>
 
             {/* Shelf & Unit Pickers */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <label className="block text-[11px] font-bold text-sky-200 uppercase tracking-wider mb-1">
-                  Subject Shelf *
-                </label>
-                <select
-                  value={selectedSubjectId}
-                  onChange={(e) => setSelectedSubjectId(e.target.value)}
-                  className="w-full px-3 py-2 text-xs bg-sky-950/60 border border-sky-400/30 text-white rounded-xl focus:outline-none focus:ring-2 focus:ring-cyan-400 font-semibold"
-                >
-                  {subjects.map((s) => (
-                    <option key={s.id} value={s.id} className="bg-slate-900 text-white">
-                      {s.name} {s.code ? `(${s.code})` : ''}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-bold text-sky-200 uppercase tracking-wider mb-1">
-                  Unit / Module *
-                </label>
-                <select
-                  value={selectedUnitNumber}
-                  onChange={(e) => setSelectedUnitNumber(Number(e.target.value))}
-                  className="w-full px-3 py-2 text-xs bg-sky-950/60 border border-sky-400/30 text-white rounded-xl focus:outline-none focus:ring-2 focus:ring-cyan-400 font-semibold"
-                >
-                  {[1, 2, 3, 4, 5].map((num) => (
-                    <option key={num} value={num} className="bg-slate-900 text-white">
-                      Unit {num}
-                    </option>
-                  ))}
-                </select>
-              </div>
+            {/* Shelf Picker */}
+            <div>
+              <label className="block text-[11px] font-bold text-sky-200 uppercase tracking-wider mb-1">
+                Subject Shelf *
+              </label>
+              <select
+                value={selectedSubjectId}
+                onChange={(e) => setSelectedSubjectId(e.target.value)}
+                className="w-full px-3 py-2 text-xs bg-sky-950/60 border border-sky-400/30 text-white rounded-xl focus:outline-none focus:ring-2 focus:ring-cyan-400 font-semibold"
+              >
+                {subjects.map((s) => (
+                  <option key={s.id} value={s.id} className="bg-slate-900 text-white">
+                    {s.name} {s.code ? `(${s.code})` : ''}
+                  </option>
+                ))}
+              </select>
             </div>
 
             {/* Clean Note Title */}

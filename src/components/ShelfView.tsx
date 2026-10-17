@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Search, Download, ExternalLink, Trash2, BookOpen, Folder, Sparkles, Filter } from 'lucide-react';
+import { Search, Download, ExternalLink, Trash2, BookOpen, Folder, Sparkles } from 'lucide-react';
 import { Subject, Note } from '../types';
 
 interface ShelfViewProps {
@@ -17,21 +17,12 @@ export const ShelfView: React.FC<ShelfViewProps> = ({
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedSubjectId, setSelectedSubjectId] = useState<string>('all');
-  const [selectedUnit, setSelectedUnit] = useState<number | 'all'>('all');
 
-  // Deep search matching title, filename, summary, and unit keywords
+  // Deep search matching title, filename, summary, and subject
   const filteredNotes = notes.filter((n) => {
     // Subject filter
     if (selectedSubjectId !== 'all' && n.subject_id !== selectedSubjectId) {
       return false;
-    }
-    // Unit filter
-    if (selectedUnit !== 'all') {
-      const matchUnit = n.clean_title.toLowerCase().includes(`unit${selectedUnit}`) || 
-                        n.clean_title.toLowerCase().includes(`unit_${selectedUnit}`) ||
-                        n.clean_title.toLowerCase().includes(`unit ${selectedUnit}`) ||
-                        n.summary?.toLowerCase().includes(`unit ${selectedUnit}`);
-      if (!matchUnit) return false;
     }
     // Search query
     if (searchQuery.trim()) {
@@ -127,25 +118,7 @@ export const ShelfView: React.FC<ShelfViewProps> = ({
         })}
       </div>
 
-      {/* Unit Sub-Filter Pills */}
-      <div className="flex items-center space-x-1.5 mb-5 overflow-x-auto pb-1 text-[11px]">
-        <span className="text-sky-300/50 flex items-center gap-1 text-[11px] font-semibold mr-1">
-          <Filter className="w-3 h-3" /> Unit:
-        </span>
-        {(['all', 1, 2, 3, 4, 5] as const).map((u) => (
-          <button
-            key={String(u)}
-            onClick={() => setSelectedUnit(u)}
-            className={`px-2.5 py-1 rounded-md font-semibold transition-all ${
-              selectedUnit === u
-                ? 'bg-sky-500/30 text-cyan-200 border border-cyan-400/40'
-                : 'text-sky-300/50 hover:text-sky-200 hover:bg-sky-900/30'
-            }`}
-          >
-            {u === 'all' ? 'All Units' : `Unit ${u}`}
-          </button>
-        ))}
-      </div>
+
 
       {/* Empty State */}
       {filteredNotes.length === 0 ? (

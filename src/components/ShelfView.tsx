@@ -181,31 +181,33 @@ export const ShelfView: React.FC<ShelfViewProps> = ({
                 </div>
 
                 {/* Card Footer Actions */}
-                <div className="px-4 py-2 bg-sky-950/60 border-t border-sky-400/15 flex items-center justify-between text-xs relative z-10 backdrop-blur-sm">
-                  <span className="text-[10px] text-sky-300/50 font-medium">
+                <div className="px-4 py-2.5 bg-sky-950/70 border-t border-sky-400/20 flex items-center justify-between text-xs relative z-10 backdrop-blur-md">
+                  <span className="text-[10px] text-sky-300/60 font-medium">
                     {new Date(note.created_at).toLocaleDateString(undefined, {
                       month: 'short',
                       day: 'numeric',
                     })}
                   </span>
 
-                  <div className="flex items-center space-x-1">
+                  {/* Centered prominent Open Notes & Action buttons */}
+                  <div className="flex items-center space-x-2">
                     {note.file_url && (
                       <a
                         href={note.file_url}
                         target="_blank"
                         rel="noreferrer"
-                        className="p-1 text-sky-300 hover:text-white hover:bg-sky-800/40 rounded-md transition-colors"
-                        title="View / Open PDF"
+                        className="inline-flex items-center space-x-1.5 px-3 py-1 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white rounded-lg text-xs font-bold shadow-sm shadow-cyan-500/25 border border-cyan-300/40 transition-all active:scale-95"
+                        title="Open & Read Note"
                       >
                         <ExternalLink className="w-3.5 h-3.5" />
+                        <span>Open Note</span>
                       </a>
                     )}
 
                     <a
                       href={note.file_url || '#'}
                       download={note.clean_title}
-                      className="p-1 text-cyan-300 hover:text-white hover:bg-sky-800/40 rounded-md transition-colors"
+                      className="p-1.5 text-cyan-300 hover:text-white bg-sky-900/40 hover:bg-sky-800/60 border border-sky-400/25 rounded-lg transition-all"
                       title="Download PDF"
                     >
                       <Download className="w-3.5 h-3.5" />
@@ -213,7 +215,7 @@ export const ShelfView: React.FC<ShelfViewProps> = ({
 
                     <button
                       onClick={() => onDeleteNote(note.id)}
-                      className="p-1 text-sky-400/50 hover:text-red-400 hover:bg-red-950/40 rounded-md transition-colors"
+                      className="p-1.5 text-sky-400/40 hover:text-red-400 hover:bg-red-950/40 rounded-lg transition-colors"
                       title="Delete Note"
                     >
                       <Trash2 className="w-3.5 h-3.5" />

@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
-import { X, Key, Database, Sparkles, CheckCircle2, AlertCircle, Cpu } from 'lucide-react';
-import { saveSupabaseCredentials, isSupabaseConfigured } from '../lib/supabase';
+import { X, Sparkles, CheckCircle2 } from 'lucide-react';
 import { getAIConfig, saveAIConfig, AIProvider } from '../lib/ai';
 
 interface SettingsModalProps {
@@ -11,19 +10,11 @@ interface SettingsModalProps {
 export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
   const currentConfig = getAIConfig();
 
-  const [supabaseUrl, setSupabaseUrl] = useState(
-    import.meta.env.VITE_SUPABASE_URL || localStorage.getItem('SN_SUPABASE_URL') || ''
-  );
-  const [supabaseKey, setSupabaseKey] = useState(
-    import.meta.env.VITE_SUPABASE_ANON_KEY || localStorage.getItem('SN_SUPABASE_ANON_KEY') || ''
-  );
-
   // Multi-Provider AI State
   const [provider, setProvider] = useState<AIProvider>(currentConfig.provider);
   const [aiKey, setAiKey] = useState<string>(currentConfig.apiKey);
   const [model, setModel] = useState<string>(currentConfig.model);
   const [customBaseUrl, setCustomBaseUrl] = useState<string>(currentConfig.customBaseUrl || '');
-
   const [savedSuccess, setSavedSuccess] = useState(false);
 
   if (!isOpen) return null;
@@ -44,180 +35,142 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
-    if (supabaseUrl && supabaseKey) {
-      saveSupabaseCredentials(supabaseUrl, supabaseKey);
-    }
     saveAIConfig({
       provider,
-      apiKey: aiKey,
-      model,
-      customBaseUrl
+      apiKey: aiKey.trim(),
+      model: model.trim(),
+      customBaseUrl: customBaseUrl.trim()
     });
     setSavedSuccess(true);
     setTimeout(() => {
+      setSavedSuccess(false);
       onClose();
-    }, 700);
+    }, 600);
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-md animate-fade-in">
-      <div className="glass-panel rounded-2xl max-w-lg w-full p-5 sm:p-7 shadow-2xl border border-sky-400/30 overflow-hidden relative shard-accent max-h-[90vh] overflow-y-auto">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in font-sans">
+      <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 relative overflow-hidden">
+        {/* Close Button */}
         <button
           onClick={onClose}
-          className="absolute top-4 right-4 text-sky-300/60 hover:text-white p-1 rounded-xl hover:bg-sky-900/40 transition-colors"
+          className="absolute top-4 right-4 text-slate-400 hover:text-slate-700 p-1.5 rounded-lg hover:bg-slate-100 transition-colors"
         >
           <X className="w-5 h-5" />
         </button>
 
-        <div className="flex items-center space-x-2 text-cyan-400 mb-2">
-          <Cpu className="w-5 h-5 text-cyan-300" />
-          <h2 className="text-xl font-black bg-gradient-to-r from-white via-sky-200 to-cyan-400 bg-clip-text text-transparent">
-            Cloud & AI Provider Settings
-          </h2>
+        {/* Clean Header */}
+        <div className="flex items-center space-x-2.5 mb-1">
+          <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center">
+            <Sparkles className="w-4 h-4" />
+          </div>
+          <div>
+            <h2 className="text-lg font-bold text-slate-900">
+              AI Settings
+            </h2>
+            <p className="text-xs text-slate-500">
+              Choose your AI provider and enter your API key to auto-sort notes.
+            </p>
+          </div>
         </div>
 
-        <p className="text-xs text-sky-200/60 mb-5">
-          Select any AI provider (Google Gemini, Groq, OpenAI, or Custom) and enter your key. All keys stay private on your device.
-        </p>
-
-        <form onSubmit={handleSave} className="space-y-4">
-          {/* AI Provider Section */}
-          <div className="p-3.5 rounded-xl bg-sky-950/40 border border-sky-400/20 space-y-3">
-            <label className="block text-xs font-bold text-cyan-300 uppercase tracking-wider flex items-center gap-1.5">
-              <Sparkles className="w-3.5 h-3.5" /> Select Your AI Provider
+        <form onSubmit={handleSave} className="mt-5 space-y-4">
+          {/* AI Provider Selector */}
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+              Select AI Service
             </label>
-
-            {/* Provider Tabs */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            <div className="grid grid-cols-4 gap-1.5">
               {(['gemini', 'groq', 'openai', 'custom'] as AIProvider[]).map((p) => (
                 <button
                   key={p}
                   type="button"
                   onClick={() => handleProviderChange(p)}
-                  className={`py-1.5 px-2 rounded-lg text-xs font-bold capitalize transition-all border ${
+                  className={`py-2 px-2 text-xs font-semibold rounded-lg capitalize transition-all border ${
                     provider === p
-                      ? 'bg-cyan-500/30 text-cyan-200 border-cyan-400 shadow-sm shadow-cyan-500/20'
-                      : 'bg-sky-950/40 text-sky-300/70 border-sky-400/10 hover:text-white'
+                      ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
+                      : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
                   }`}
                 >
-                  {p === 'gemini' ? 'Gemini' : p === 'groq' ? 'Groq (Free)' : p === 'openai' ? 'OpenAI' : 'Custom'}
+                  {p === 'gemini' ? 'Gemini' : p === 'groq' ? 'Groq' : p === 'openai' ? 'OpenAI' : 'Other'}
                 </button>
               ))}
             </div>
-
-            {/* API Key */}
-            <div>
-              <label className="block text-[11px] font-semibold text-sky-200 mb-1">
-                {provider.toUpperCase()} API Key *
-              </label>
-              <input
-                type="password"
-                placeholder={
-                  provider === 'gemini' ? 'AIzaSy...' :
-                  provider === 'groq' ? 'gsk_...' :
-                  provider === 'openai' ? 'sk-...' : 'API Key...'
-                }
-                value={aiKey}
-                onChange={(e) => setAiKey(e.target.value)}
-                className="w-full px-3 py-1.5 text-xs bg-sky-950/80 border border-sky-400/30 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-cyan-400 font-mono"
-              />
-              <p className="text-[10px] text-sky-300/50 mt-1">
-                {provider === 'groq' && 'Get free key instantly at console.groq.com (Ultra-fast & zero 503 errors).'}
-                {provider === 'gemini' && 'Get free key at aistudio.google.com.'}
-                {provider === 'openai' && 'Get key at platform.openai.com.'}
-                {provider === 'custom' && 'Works with OpenRouter, DeepSeek, Local Ollama, etc.'}
-              </p>
-            </div>
-
-            {/* Model Name */}
-            <div>
-              <label className="block text-[11px] font-semibold text-sky-200 mb-1">
-                Model Name
-              </label>
-              <input
-                type="text"
-                placeholder="e.g. gemini-2.5-flash, llama-3.3-70b-versatile"
-                value={model}
-                onChange={(e) => setModel(e.target.value)}
-                className="w-full px-3 py-1.5 text-xs bg-sky-950/80 border border-sky-400/30 rounded-lg text-cyan-200 focus:outline-none focus:ring-2 focus:ring-cyan-400 font-mono"
-              />
-            </div>
-
-            {/* Custom Base URL (if custom) */}
-            {provider === 'custom' && (
-              <div>
-                <label className="block text-[11px] font-semibold text-sky-200 mb-1">
-                  Custom Base URL
-                </label>
-                <input
-                  type="text"
-                  placeholder="https://openrouter.ai/api/v1"
-                  value={customBaseUrl}
-                  onChange={(e) => setCustomBaseUrl(e.target.value)}
-                  className="w-full px-3 py-1.5 text-xs bg-sky-950/80 border border-sky-400/30 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-cyan-400 font-mono"
-                />
-              </div>
-            )}
+            <p className="text-[11px] text-slate-500 mt-1.5">
+              {provider === 'groq' && '💡 Recommended: Groq gives free, ultra-fast Llama 3 keys at console.groq.com'}
+              {provider === 'gemini' && '💡 Free keys available at aistudio.google.com'}
+              {provider === 'openai' && '💡 OpenAI keys from platform.openai.com'}
+              {provider === 'custom' && '💡 Compatible with OpenRouter, DeepSeek, or any OpenAI-compatible URL'}
+            </p>
           </div>
 
-          {/* Supabase Storage & Database Section */}
-          <div className="p-3.5 rounded-xl bg-sky-950/40 border border-sky-400/20 space-y-3">
-            <label className="block text-xs font-bold text-sky-200 uppercase tracking-wider flex items-center justify-between">
-              <span className="flex items-center gap-1.5">
-                <Database className="w-3.5 h-3.5 text-cyan-400" /> Supabase Cloud Storage
-              </span>
-              {isSupabaseConfigured ? (
-                <span className="text-emerald-400 flex items-center gap-1 text-[10px] normal-case font-bold">
-                  <CheckCircle2 className="w-3 h-3" /> Connected
-                </span>
-              ) : (
-                <span className="text-amber-400 flex items-center gap-1 text-[10px] normal-case font-bold">
-                  <AlertCircle className="w-3 h-3" /> Missing
-                </span>
-              )}
+          {/* API Key */}
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 mb-1">
+              API Key *
             </label>
-
-            <div>
-              <label className="block text-[11px] font-semibold text-sky-200 mb-1">Project URL</label>
-              <input
-                type="text"
-                placeholder="https://your-project.supabase.co"
-                value={supabaseUrl}
-                onChange={(e) => setSupabaseUrl(e.target.value)}
-                className="w-full px-3 py-1.5 text-xs bg-sky-950/80 border border-sky-400/30 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-cyan-400 font-mono"
-              />
-            </div>
-
-            <div>
-              <label className="block text-[11px] font-semibold text-sky-200 mb-1">Anon Public Key</label>
-              <input
-                type="password"
-                placeholder="eyJhbGciOi..."
-                value={supabaseKey}
-                onChange={(e) => setSupabaseKey(e.target.value)}
-                className="w-full px-3 py-1.5 text-xs bg-sky-950/80 border border-sky-400/30 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-cyan-400 font-mono"
-              />
-            </div>
+            <input
+              type="password"
+              placeholder={
+                provider === 'gemini' ? 'AIzaSy...' :
+                provider === 'groq' ? 'gsk_...' :
+                provider === 'openai' ? 'sk-...' : 'Enter your API key...'
+              }
+              value={aiKey}
+              onChange={(e) => setAiKey(e.target.value)}
+              className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-lg text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all font-mono"
+            />
           </div>
 
-          {savedSuccess && (
-            <div className="p-2.5 bg-emerald-950/50 border border-emerald-500/40 rounded-xl text-emerald-200 text-xs flex items-center space-x-2">
-              <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-              <span>Settings saved! Reloading...</span>
+          {/* Model Name */}
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 mb-1">
+              Model Name
+            </label>
+            <input
+              type="text"
+              placeholder="e.g. gemini-2.5-flash, llama-3.3-70b-versatile"
+              value={model}
+              onChange={(e) => setModel(e.target.value)}
+              className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all font-mono"
+            />
+          </div>
+
+          {/* Custom Base URL (if custom) */}
+          {provider === 'custom' && (
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">
+                API Base URL
+              </label>
+              <input
+                type="text"
+                placeholder="https://openrouter.ai/api/v1"
+                value={customBaseUrl}
+                onChange={(e) => setCustomBaseUrl(e.target.value)}
+                className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all font-mono"
+              />
             </div>
           )}
 
+          {savedSuccess && (
+            <div className="p-2.5 bg-emerald-50 border border-emerald-200 rounded-lg text-emerald-700 text-xs flex items-center space-x-2">
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+              <span className="font-semibold">AI Settings saved successfully!</span>
+            </div>
+          )}
+
+          {/* Action Buttons */}
           <div className="pt-2 flex justify-end space-x-2">
             <button
               type="button"
               onClick={onClose}
-              className="px-3.5 py-1.5 text-xs text-sky-300 hover:text-white rounded-lg font-medium"
+              className="px-3.5 py-2 text-xs text-slate-600 hover:text-slate-800 font-medium rounded-lg hover:bg-slate-100 transition-colors"
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="px-4 py-1.5 text-xs bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-bold rounded-lg shadow-md shadow-cyan-500/30 border border-cyan-300/30"
+              className="px-4 py-2 text-xs bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg shadow-sm transition-all"
             >
               Save Settings
             </button>

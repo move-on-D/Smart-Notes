@@ -4,15 +4,22 @@ import { ShelfView } from './components/ShelfView';
 import { SyllabusManager } from './components/SyllabusManager';
 import { UploadModal } from './components/UploadModal';
 import { SettingsModal } from './components/SettingsModal';
+import { AuthPage } from './components/AuthPage';
 import { Subject, Unit, Note } from './types';
-import { supabase, isSupabaseConfigured } from './lib/supabase';
-import { isGeminiConfigured } from './lib/gemini';
+import { supabase, isSupabaseConfigured, signOutUser } from './lib/supabase';
+import { isAIConfigured } from './lib/ai';
+
+declare global {
+  interface Window {
+    handleSharedFile?: (fileName: string, mimeType: string, base64Data: string) => void;
+  }
+}
 
 const SAMPLE_2ND_YEAR_SUBJECTS: Array<{ name: string; code: string; color: string; units: string[] }> = [
   {
     name: 'Operating Systems',
     code: 'CS301',
-    color: '#4f46e5',
+    color: '#0284c7',
     units: [
       'Unit 1: OS Overview & System Calls',
       'Unit 2: Process Management & CPU Scheduling',
@@ -24,7 +31,7 @@ const SAMPLE_2ND_YEAR_SUBJECTS: Array<{ name: string; code: string; color: strin
   {
     name: 'Data Structures & Algorithms',
     code: 'CS302',
-    color: '#0ea5e9',
+    color: '#06b6d4',
     units: [
       'Unit 1: Arrays, Stacks & Queues',
       'Unit 2: Linked Lists & Skip Lists',
@@ -48,7 +55,7 @@ const SAMPLE_2ND_YEAR_SUBJECTS: Array<{ name: string; code: string; color: strin
   {
     name: 'Computer Networks',
     code: 'CS304',
-    color: '#f59e0b',
+    color: '#3b82f6',
     units: [
       'Unit 1: Physical Layer & Topologies',
       'Unit 2: Data Link Layer & Framing',
@@ -74,13 +81,56 @@ const SAMPLE_2ND_YEAR_SUBJECTS: Array<{ name: string; code: string; color: strin
 export function App() {
   const [activeTab, setActiveTab] = useState<'shelf' | 'syllabus' | 'upload'>('shelf');
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [user, setUser] = useState<any>(null);
+  const [isGuest, setIsGuest] = useState<boolean>(false);
+
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [notes, setNotes] = useState<Note[]>([]);
   const [loading, setLoading] = useState(true);
+  const [incomingSharedFile, setIncomingSharedFile] = useState<File | null>(null);
 
-  // Load initial data and subscribe to live changes
+  // Monitor Supabase Authentication
+  useEffect(() => {
+    if (isSupabaseConfigured && supabase) {
+      supabase.auth.getSession().then(({ data: { session } }) => {
+        setUser(session?.user ?? null);
+      });
+
+      const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+        setUser(session?.user ?? null);
+        if (session?.user) {
+          setIsGuest(false);
+        }
+      });
+
+      return () => subscription.unsubscribe();
+    }
+  }, []);
+
+  // Load user data whenever auth state changes
   useEffect(() => {
     loadInitialData();
+
+    // Register Native WhatsApp Share Bridge Listener
+    window.handleSharedFile = (fileName: string, mimeType: string, base64Data: string) => {
+      try {
+        console.log('Received shared file from WhatsApp/Android:', fileName);
+        const byteCharacters = atob(base64Data);
+        const byteNumbers = new Array(byteCharacters.length);
+        for (let i = 0; i < byteCharacters.length; i++) {
+          byteNumbers[i] = byteCharacters.charCodeAt(i);
+        }
+        const byteArray = new Uint8Array(byteNumbers);
+        const blob = new Blob([byteArray], { type: mimeType || 'application/pdf' });
+        const sharedFile = new File([blob], fileName, { type: mimeType || 'application/pdf' });
+        
+        setIncomingSharedFile(sharedFile);
+        setActiveTab('upload');
+      } catch (err) {
+        console.error('Failed to process incoming shared file:', err);
+      }
+    };
 
     // Live Realtime Sync: When mobile uploads a note, laptop updates instantly!
     if (isSupabaseConfigured && supabase) {
@@ -99,16 +149,18 @@ export function App() {
         supabase?.removeChannel(channel);
       };
     }
-  }, []);
+  }, [user]);
 
   const loadInitialData = async () => {
     setLoading(true);
     try {
       if (isSupabaseConfigured && supabase) {
-        // Fetch subjects and their units from Supabase
-        const { data: subData } = await supabase
-          .from('subjects')
-          .select('*, units(*)');
+        // Query user-specific subjects and notes
+        const subjectsQuery = user 
+          ? supabase.from('subjects').select('*, units(*)').eq('user_id', user.id)
+          : supabase.from('subjects').select('*, units(*)');
+
+        const { data: subData } = await subjectsQuery;
 
         if (subData && subData.length > 0) {
           setSubjects(subData);
@@ -116,10 +168,11 @@ export function App() {
           loadFromLocalStorage();
         }
 
-        // Fetch notes from Supabase
-        const { data: notesData } = await supabase
-          .from('notes')
-          .select('*, subject:subjects(*)');
+        const notesQuery = user
+          ? supabase.from('notes').select('*, subject:subjects(*)').eq('user_id', user.id)
+          : supabase.from('notes').select('*, subject:subjects(*)');
+
+        const { data: notesData } = await notesQuery;
 
         if (notesData) {
           setNotes(notesData);
@@ -180,6 +233,7 @@ export function App() {
         const { data: insertedSub } = await supabase
           .from('subjects')
           .insert({
+            user_id: user?.id,
             name: subject.name,
             code: subject.code,
             color: subject.color,
@@ -244,7 +298,12 @@ export function App() {
         for (const item of SAMPLE_2ND_YEAR_SUBJECTS) {
           const { data: sub } = await supabase
             .from('subjects')
-            .insert({ name: item.name, code: item.code, color: item.color })
+            .insert({ 
+              user_id: user?.id,
+              name: item.name, 
+              code: item.code, 
+              color: item.color 
+            })
             .select()
             .single();
           if (sub) {
@@ -266,6 +325,7 @@ export function App() {
   const handleUploadComplete = (newNote: Note) => {
     const updated = [newNote, ...notes];
     saveLocalNotes(updated);
+    setIncomingSharedFile(null);
     setActiveTab('shelf');
   };
 
@@ -281,22 +341,44 @@ export function App() {
     saveLocalNotes(updated);
   };
 
-  const isConfigured = Boolean(isSupabaseConfigured && isGeminiConfigured());
+  const handleSignOut = async () => {
+    await signOutUser();
+    setUser(null);
+    setSubjects([]);
+    setNotes([]);
+  };
+
+  const isConfigured = Boolean(isSupabaseConfigured && isAIConfigured());
+
+  // Show Auth Page if user is not authenticated and has not clicked guest mode
+  if (!user && !isGuest && isSupabaseConfigured && !showAuthModal) {
+    return (
+      <div className="min-h-screen text-slate-100 flex flex-col font-sans relative overflow-x-hidden">
+        <AuthPage
+          onSuccess={() => {
+            loadInitialData();
+          }}
+          onContinueAsGuest={() => setIsGuest(true)}
+          onOpenSettings={() => setIsSettingsOpen(true)}
+        />
+        <SettingsModal
+          isOpen={isSettingsOpen}
+          onClose={() => setIsSettingsOpen(false)}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen text-slate-100 flex flex-col font-sans relative overflow-x-hidden">
-      {/* Ambient Glass Blue Glows & Broken Glass Shard Backdrop */}
+      {/* Refined ambient background */}
       <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden">
-        {/* Glow Spheres */}
-        <div className="absolute top-[-10%] left-[-10%] w-[500px] h-[500px] rounded-full bg-cyan-600/15 blur-[120px]"></div>
-        <div className="absolute bottom-[-10%] right-[-10%] w-[600px] h-[600px] rounded-full bg-blue-600/15 blur-[140px]"></div>
-        <div className="absolute top-[40%] right-[20%] w-[400px] h-[400px] rounded-full bg-sky-500/10 blur-[100px]"></div>
+        <div className="absolute top-[-5%] left-[-5%] w-[300px] h-[300px] rounded-full bg-cyan-600/10 blur-[80px]"></div>
+        <div className="absolute bottom-[-5%] right-[-5%] w-[320px] h-[320px] rounded-full bg-blue-600/10 blur-[90px]"></div>
 
-        {/* Floating Broken Glass Shards */}
-        <div className="absolute top-20 left-12 w-32 h-44 bg-sky-400/5 border border-sky-300/20 backdrop-blur-sm glass-shard-1 rotate-12 opacity-60"></div>
-        <div className="absolute top-96 right-16 w-48 h-64 bg-cyan-400/5 border border-cyan-300/20 backdrop-blur-sm glass-shard-2 -rotate-45 opacity-50"></div>
-        <div className="absolute bottom-32 left-1/4 w-36 h-36 bg-blue-400/5 border border-blue-300/20 backdrop-blur-sm glass-shard-1 rotate-45 opacity-40"></div>
-        <div className="absolute top-1/3 left-2/3 w-24 h-48 bg-sky-300/5 border border-cyan-400/15 backdrop-blur-sm glass-shard-2 15deg opacity-30"></div>
+        <div className="absolute top-16 left-8 w-14 h-20 bg-sky-400/5 border border-sky-300/15 backdrop-blur-[1px] glass-shard-1 rotate-12 opacity-30"></div>
+        <div className="absolute top-72 right-8 w-16 h-24 bg-cyan-400/5 border border-cyan-300/15 backdrop-blur-[1px] glass-shard-2 -rotate-25 opacity-25"></div>
+        <div className="absolute bottom-28 left-1/4 w-12 h-16 bg-blue-400/5 border border-blue-300/15 backdrop-blur-[1px] glass-shard-1 rotate-45 opacity-20"></div>
       </div>
 
       <Navbar
@@ -304,6 +386,9 @@ export function App() {
         setActiveTab={setActiveTab}
         onOpenSettings={() => setIsSettingsOpen(true)}
         isConfigured={isConfigured}
+        user={user}
+        onSignOut={handleSignOut}
+        onOpenAuth={() => setIsGuest(false)}
       />
 
       <main className="flex-1 pb-16 relative z-10">
@@ -328,6 +413,7 @@ export function App() {
         {activeTab === 'upload' && (
           <UploadModal
             subjects={subjects}
+            initialFile={incomingSharedFile}
             onUploadComplete={handleUploadComplete}
             onOpenSettings={() => setIsSettingsOpen(true)}
           />

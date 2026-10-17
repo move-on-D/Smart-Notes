@@ -82,8 +82,8 @@ export const Navbar: React.FC<NavbarProps> = ({
             <span>Upload</span>
           </button>
 
-          {/* User Account / Profile Button */}
-          {user ? (
+          {/* User Account / Profile Badge when signed in */}
+          {user && (
             <div className="flex items-center space-x-1.5 pl-1">
               <div 
                 className="flex items-center space-x-1.5 bg-sky-950/60 border border-sky-400/30 px-2.5 py-1.5 rounded-xl text-xs font-semibold text-cyan-200"
@@ -102,14 +102,6 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <LogOut className="w-3.5 h-3.5" />
               </button>
             </div>
-          ) : (
-            <button
-              onClick={onOpenAuth}
-              className="flex items-center space-x-1 text-xs font-bold px-2.5 py-1.5 rounded-xl bg-sky-900/40 hover:bg-sky-800/50 text-cyan-300 border border-cyan-400/30 transition-all"
-            >
-              <LogIn className="w-3.5 h-3.5" />
-              <span>Sign In</span>
-            </button>
           )}
 
           {/* Settings Button */}

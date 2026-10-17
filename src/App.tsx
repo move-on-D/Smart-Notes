@@ -350,8 +350,8 @@ export function App() {
 
   const isConfigured = Boolean(isSupabaseConfigured && isAIConfigured());
 
-  // Show Auth Page if user is not authenticated and has not clicked guest mode
-  if (!user && !isGuest && isSupabaseConfigured && !showAuthModal) {
+  // Show full-page Auth portal first if user is not authenticated and has not explicitly chosen guest mode
+  if (!user && !isGuest) {
     return (
       <div className="min-h-screen text-slate-100 flex flex-col font-sans relative overflow-x-hidden">
         <AuthPage

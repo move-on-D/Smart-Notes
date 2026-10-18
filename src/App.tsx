@@ -6,6 +6,7 @@ import { UploadModal } from './components/UploadModal';
 import { SettingsModal } from './components/SettingsModal';
 import { AuthPage } from './components/AuthPage';
 import { MoveOnChat } from './components/MoveOnChat';
+import { VoiceReadModal } from './components/VoiceReadModal';
 import { Subject, Unit, Note } from './types';
 import { supabase, isSupabaseConfigured, signOutUser } from './lib/supabase';
 import { isAIConfigured } from './lib/ai';
@@ -88,7 +89,8 @@ export function App() {
   // MOVE ON bot and Voice Read state
   const [isBotOpen, setIsBotOpen] = useState(false);
   const [botSelectedNote, setBotSelectedNote] = useState<Note | null>(null);
-  const [isSpeaking, setIsSpeaking] = useState(false);
+  const [isVoiceModalOpen, setIsVoiceModalOpen] = useState(false);
+  const [voiceSelectedNote, setVoiceSelectedNote] = useState<Note | null>(null);
 
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [notes, setNotes] = useState<Note[]>([]);
@@ -362,31 +364,10 @@ export function App() {
     setIsGuest(false);
   };
 
-  // Word-for-Word Voice Readout using Native Web Speech API
+  // Selective Voice Readout: Opens modal to read highlighted text, specific pages, or chosen sections
   const handleVoiceRead = (note: Note) => {
-    if (!('speechSynthesis' in window)) {
-      alert('Speech reading is not supported on this browser.');
-      return;
-    }
-
-    if (isSpeaking) {
-      window.speechSynthesis.cancel();
-      setIsSpeaking(false);
-      return;
-    }
-
-    const textToRead = note.summary 
-      ? `${note.clean_title}. ${note.summary}`
-      : note.clean_title;
-
-    const utterance = new SpeechSynthesisUtterance(textToRead);
-    utterance.rate = 1.0;
-    utterance.pitch = 1.0;
-    utterance.onend = () => setIsSpeaking(false);
-    utterance.onerror = () => setIsSpeaking(false);
-
-    window.speechSynthesis.speak(utterance);
-    setIsSpeaking(true);
+    setVoiceSelectedNote(note);
+    setIsVoiceModalOpen(true);
   };
 
   const handleOpenBot = (note: Note) => {
@@ -469,6 +450,13 @@ export function App() {
           />
         )}
       </main>
+
+      {/* Selective Voice Readout Modal */}
+      <VoiceReadModal
+        isOpen={isVoiceModalOpen}
+        onClose={() => setIsVoiceModalOpen(false)}
+        note={voiceSelectedNote}
+      />
 
       {/* MOVE ON Bot Slide-out Drawer */}
       <MoveOnChat

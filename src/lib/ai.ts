@@ -10,10 +10,52 @@ export interface AIConfig {
   customBaseUrl?: string;
 }
 
+export interface CreditTracker {
+  total: number;
+  used: number;
+  remaining: number;
+  resetDate: string;
+}
+
+// Default system-baked API Key (Creator shared key, 100% free tier)
+const DEFAULT_GEMINI_KEY = import.meta.env.VITE_GEMINI_API_KEY || '';
+
+// Daily quota tracking (e.g., 1500 daily requests for Gemini Flash / Groq)
+const DAILY_QUOTA = 1500;
+
+export const getCreditTracker = (): CreditTracker => {
+  const todayStr = new Date().toISOString().split('T')[0];
+  const storedReset = localStorage.getItem('SN_CREDIT_RESET_DATE') || '';
+  let used = Number(localStorage.getItem('SN_CREDIT_USED') || 0);
+
+  if (storedReset !== todayStr) {
+    // Reset counter for new day
+    used = 0;
+    localStorage.setItem('SN_CREDIT_RESET_DATE', todayStr);
+    localStorage.setItem('SN_CREDIT_USED', '0');
+  }
+
+  const remaining = Math.max(0, DAILY_QUOTA - used);
+  return {
+    total: DAILY_QUOTA,
+    used,
+    remaining,
+    resetDate: todayStr
+  };
+};
+
+export const recordCreditUsage = () => {
+  const current = getCreditTracker();
+  const newUsed = current.used + 1;
+  localStorage.setItem('SN_CREDIT_USED', String(newUsed));
+  // Dispatch custom event for real-time reactive UI update
+  window.dispatchEvent(new CustomEvent('sn_credits_updated'));
+};
+
 // Storage helpers
 export const getAIConfig = (): AIConfig => {
   const provider = (localStorage.getItem('SN_AI_PROVIDER') as AIProvider) || 'gemini';
-  const apiKey = localStorage.getItem('SN_AI_KEY') || localStorage.getItem('SN_GEMINI_KEY') || '';
+  const apiKey = localStorage.getItem('SN_AI_KEY') || DEFAULT_GEMINI_KEY;
   const model = localStorage.getItem('SN_AI_MODEL') || (
     provider === 'gemini' ? 'gemini-2.5-flash' :
     provider === 'groq' ? 'llama-3.3-70b-versatile' :
@@ -33,6 +75,7 @@ export const saveAIConfig = (config: AIConfig) => {
   } else {
     localStorage.removeItem('SN_AI_BASEURL');
   }
+  window.dispatchEvent(new CustomEvent('sn_ai_config_updated'));
 };
 
 export const isAIConfigured = (): boolean => {
@@ -53,10 +96,10 @@ export async function fileToBase64(file: File): Promise<string> {
   });
 }
 
-// Helper: Quick client-side text extractor for PDFs (first ~3000 chars)
+// Client-side text extractor for PDFs & text search
 export async function extractPdfTextSample(file: File): Promise<string> {
   try {
-    const arrayBuffer = await file.slice(0, 150000).arrayBuffer(); // Read first 150KB
+    const arrayBuffer = await file.slice(0, 250000).arrayBuffer(); // Read first 250KB
     const text = new TextDecoder('latin1').decode(arrayBuffer);
     
     // Extract readable ascii strings from PDF text streams
@@ -65,43 +108,59 @@ export async function extractPdfTextSample(file: File): Promise<string> {
       const cleaned = matches
         .map(m => m.replace(/[\(\)\[\]]/g, ' ').trim())
         .filter(m => m.length > 2 && !m.startsWith('/'))
-        .slice(0, 80)
+        .slice(0, 150)
         .join(' ');
       if (cleaned.length > 50) return cleaned;
     }
   } catch (e) {
-    console.warn('Could not extract raw text sample from PDF:', e);
+    console.warn('Could not extract text sample from PDF:', e);
   }
   return `File Name: "${file.name}"`;
 }
 
-// Build Prompt for any LLM
+// Full-length text extractor for Voice Reading & MOVE ON bot
+export async function extractFullReadableText(file: File): Promise<string> {
+  try {
+    const arrayBuffer = await file.arrayBuffer();
+    const text = new TextDecoder('latin1').decode(arrayBuffer);
+    const matches = text.match(/\(([^()]{3,})\)/g);
+    if (matches && matches.length > 0) {
+      const readable = matches
+        .map(m => m.replace(/[\(\)]/g, ' ').trim())
+        .filter(m => m.length > 2 && !m.startsWith('/') && !m.startsWith('\\'))
+        .join(' ');
+      if (readable.length > 30) return readable;
+    }
+  } catch (e) {
+    console.warn('Could not extract full readable text:', e);
+  }
+  return file.name.replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' ');
+}
+
+// Build Prompt for notes classification
 function buildSystemPrompt(fileName: string, subjects: Subject[], textSample: string): string {
   const subjectsContext = subjects.map(s => {
-    const unitList = s.units?.map(u => `Unit ${u.unit_number}: ${u.title}`).join(', ') || 'General';
-    return `- ${s.name} (Code: ${s.code || 'N/A'}) [Units: ${unitList}]`;
+    return `- ${s.name} (Code: ${s.code || 'N/A'})`;
   }).join('\n');
 
   return `
-You are a university engineering notes classifier and organizer.
+You are a university college notes organizer.
 The student uploaded a document with filename: "${fileName}".
 Document text sample: "${textSample}"
 
-STUDENT'S SUBJECTS & UNITS:
+STUDENT'S REGISTERED SUBJECTS:
 ${subjectsContext}
 
 TASK:
 1. Identify which Subject this document belongs to from the list.
-2. Identify the Unit number (1 to 5).
-3. Create a clean, professional renamed filename: [Subject]_[UnitX]_[Topic].pdf
-   Example: "OS_Unit2_CPU_Scheduling.pdf"
-4. Write a 1-sentence summary of the topics.
-5. List 3 key keywords.
+2. Create a clean, professional renamed title: [Topic or Chapter Name].pdf
+   Example: "Deadlocks and Process Synchronization.pdf" or "Binary Search Trees.pdf"
+3. Write a 1-sentence summary of the topics covered strictly in this document.
+4. List 3 key keywords.
 
 Return ONLY raw JSON with no markdown wrapping:
 {
   "subjectName": "string",
-  "unitNumber": 1,
   "cleanTitle": "string",
   "summary": "string",
   "confidence": 0.95,
@@ -110,20 +169,106 @@ Return ONLY raw JSON with no markdown wrapping:
 `;
 }
 
-// Universal Classifier executing against the user's chosen provider
+// MOVE ON Bot - Strictly explains only from the student's uploaded notes
+export async function askMoveOnBot(
+  question: string,
+  noteTitle: string,
+  subjectName: string,
+  notesContent: string
+): Promise<string> {
+  const config = getAIConfig();
+  if (!config.apiKey) {
+    return "Please configure the AI API Key or notify your admin to reload credits.";
+  }
+
+  const systemInstructions = `
+You are "MOVE ON", an intelligent university study companion.
+The student is studying: "${noteTitle}" in "${subjectName}".
+
+STRICT RULES:
+1. You must answer the student's question STRICTLY and ONLY using the provided lecture notes text below.
+2. Do NOT hallucinate or bring in outside textbook theories unless explicitly requested by the student.
+3. If the topic or answer is not mentioned in the notes text, politely state: "This topic is not covered in your uploaded notes for this chapter."
+4. Keep explanations clear, structured, and easy for an engineering college student to understand for exams.
+
+LECTURE NOTES TEXT:
+"""
+${notesContent.slice(0, 15000)}
+"""
+`;
+
+  recordCreditUsage();
+
+  if (config.provider === 'groq') {
+    const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${config.apiKey}`
+      },
+      body: JSON.stringify({
+        model: config.model || 'llama-3.3-70b-versatile',
+        messages: [
+          { role: 'system', content: systemInstructions },
+          { role: 'user', content: question }
+        ],
+        temperature: 0.2
+      })
+    });
+    const data = await res.json();
+    return data.choices?.[0]?.message?.content || "No response received.";
+  }
+
+  if (config.provider === 'openai' || config.provider === 'custom') {
+    const url = config.customBaseUrl 
+      ? `${config.customBaseUrl.replace(/\/$/, '')}/chat/completions`
+      : 'https://api.openai.com/v1/chat/completions';
+
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${config.apiKey}`
+      },
+      body: JSON.stringify({
+        model: config.model || 'gpt-4o-mini',
+        messages: [
+          { role: 'system', content: systemInstructions },
+          { role: 'user', content: question }
+        ],
+        temperature: 0.2
+      })
+    });
+    const data = await res.json();
+    return data.choices?.[0]?.message?.content || "No response received.";
+  }
+
+  // Google Gemini default
+  const genAI = new GoogleGenerativeAI(config.apiKey);
+  const model = genAI.getGenerativeModel({
+    model: config.model || 'gemini-2.5-flash',
+    systemInstruction: systemInstructions
+  });
+
+  const chat = await model.generateContent(question);
+  return chat.response.text();
+}
+
+// Universal Classifier executing against the chosen provider
 export async function universalClassifyNote(
   file: File,
   subjects: Subject[]
 ): Promise<AIClassificationResult> {
   const config = getAIConfig();
   if (!config.apiKey) {
-    throw new Error('No AI API Key found. Please add your key in Settings (gear icon).');
+    throw new Error('No AI API Key found. Please add or notify admin.');
   }
 
+  recordCreditUsage();
   const textSample = await extractPdfTextSample(file);
   const prompt = buildSystemPrompt(file.name, subjects, textSample);
 
-  // 1. GROQ (Blazing Fast Llama 3.3 70B - completely free API)
+  // 1. GROQ
   if (config.provider === 'groq') {
     const model = config.model || 'llama-3.3-70b-versatile';
     const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
@@ -139,75 +284,46 @@ export async function universalClassifyNote(
         response_format: { type: 'json_object' }
       })
     });
-    if (!res.ok) {
-      const errData = await res.json().catch(() => ({}));
-      throw new Error(errData?.error?.message || `Groq error: ${res.statusText}`);
-    }
+    if (!res.ok) throw new Error(`Groq error: ${res.statusText}`);
     const data = await res.json();
     const rawContent = data.choices?.[0]?.message?.content || '{}';
     return parseAIResponse(rawContent);
   }
 
-  // 2. OPENAI (GPT-4o-mini / GPT-4o)
-  if (config.provider === 'openai') {
-    const model = config.model || 'gpt-4o-mini';
-    const res = await fetch('https://api.openai.com/v1/chat/completions', {
+  // 2. OPENAI & CUSTOM
+  if (config.provider === 'openai' || config.provider === 'custom') {
+    const url = config.customBaseUrl 
+      ? `${config.customBaseUrl.replace(/\/$/, '')}/chat/completions`
+      : 'https://api.openai.com/v1/chat/completions';
+
+    const res = await fetch(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${config.apiKey}`
       },
       body: JSON.stringify({
-        model: model,
+        model: config.model || (config.provider === 'openai' ? 'gpt-4o-mini' : 'meta-llama/llama-3.3-70b-instruct'),
         messages: [{ role: 'user', content: prompt }],
-        temperature: 0.2,
+        temperature: 0.1,
         response_format: { type: 'json_object' }
       })
     });
-    if (!res.ok) {
-      const errData = await res.json().catch(() => ({}));
-      throw new Error(errData?.error?.message || `OpenAI error: ${res.statusText}`);
-    }
+    if (!res.ok) throw new Error(`AI error: ${res.statusText}`);
     const data = await res.json();
     const rawContent = data.choices?.[0]?.message?.content || '{}';
     return parseAIResponse(rawContent);
   }
 
-  // 3. CUSTOM OPENAI-COMPATIBLE / OPENROUTER / DEEPSEEK
-  if (config.provider === 'custom') {
-    const endpoint = (config.customBaseUrl || 'https://openrouter.ai/api/v1').replace(/\/+$/, '') + '/chat/completions';
-    const res = await fetch(endpoint, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${config.apiKey}`
-      },
-      body: JSON.stringify({
-        model: config.model || 'meta-llama/llama-3.3-70b-instruct',
-        messages: [{ role: 'user', content: prompt }],
-        temperature: 0.2
-      })
-    });
-    if (!res.ok) {
-      const errData = await res.json().catch(() => ({}));
-      throw new Error(errData?.error?.message || `Custom AI provider error: ${res.statusText}`);
-    }
-    const data = await res.json();
-    const rawContent = data.choices?.[0]?.message?.content || '{}';
-    return parseAIResponse(rawContent);
-  }
-
-  // 4. GOOGLE GEMINI (Default)
+  // 3. GOOGLE GEMINI (Default)
   const base64Data = await fileToBase64(file);
   const genAI = new GoogleGenerativeAI(config.apiKey);
   
-  // Try candidate models in order: 2.5 flash, 2.0 flash, 3.5 flash, flash-latest
   const geminiCandidates = [
     config.model || 'gemini-2.5-flash',
     'gemini-2.0-flash',
     'gemini-3.5-flash',
-    'gemini-flash-latest',
-    'gemini-1.5-flash-latest'
+    'gemini-flash-latest'
   ];
 
   let lastErr: any = null;

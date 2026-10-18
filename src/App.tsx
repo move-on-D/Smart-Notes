@@ -5,6 +5,7 @@ import { SyllabusManager } from './components/SyllabusManager';
 import { UploadModal } from './components/UploadModal';
 import { SettingsModal } from './components/SettingsModal';
 import { AuthPage } from './components/AuthPage';
+import { MoveOnChat } from './components/MoveOnChat';
 import { Subject, Unit, Note } from './types';
 import { supabase, isSupabaseConfigured, signOutUser } from './lib/supabase';
 import { isAIConfigured } from './lib/ai';
@@ -81,9 +82,13 @@ const SAMPLE_2ND_YEAR_SUBJECTS: Array<{ name: string; code: string; color: strin
 export function App() {
   const [activeTab, setActiveTab] = useState<'shelf' | 'syllabus' | 'upload'>('shelf');
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [showAuthModal, setShowAuthModal] = useState(false);
   const [user, setUser] = useState<any>(null);
   const [isGuest, setIsGuest] = useState<boolean>(false);
+
+  // MOVE ON bot and Voice Read state
+  const [isBotOpen, setIsBotOpen] = useState(false);
+  const [botSelectedNote, setBotSelectedNote] = useState<Note | null>(null);
+  const [isSpeaking, setIsSpeaking] = useState(false);
 
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [notes, setNotes] = useState<Note[]>([]);
@@ -132,7 +137,7 @@ export function App() {
       }
     };
 
-    // Live Realtime Sync: When mobile uploads a note, laptop updates instantly!
+    // Live Realtime Sync across devices
     if (isSupabaseConfigured && supabase) {
       const channel = supabase
         .channel('realtime_notes_channel')
@@ -155,7 +160,6 @@ export function App() {
     setLoading(true);
     try {
       if (isSupabaseConfigured && supabase) {
-        // Query user-specific subjects and notes
         const subjectsQuery = user 
           ? supabase.from('subjects').select('*, units(*)').eq('user_id', user.id)
           : supabase.from('subjects').select('*, units(*)');
@@ -265,78 +269,89 @@ export function App() {
     if (isSupabaseConfigured && supabase) {
       try {
         await supabase.from('subjects').delete().eq('id', subjectId);
+        loadInitialData();
+        return;
       } catch (e) {
-        console.warn(e);
+        console.warn('Supabase delete subject error:', e);
       }
     }
+
     const updated = subjects.filter((s) => s.id !== subjectId);
     saveLocalSubjects(updated);
+    const updatedNotes = notes.filter((n) => n.subject_id !== subjectId);
+    saveLocalNotes(updatedNotes);
   };
 
   const handleLoadTemplate = async () => {
-    const templateSubjects: Subject[] = SAMPLE_2ND_YEAR_SUBJECTS.map((item, idx) => {
-      const sId = String(Date.now() + idx);
-      return {
-        id: sId,
-        name: item.name,
-        code: item.code,
-        color: item.color,
-        units: item.units.map((u, uIdx) => ({
-          id: `${sId}_u${uIdx + 1}`,
-          subject_id: sId,
-          unit_number: uIdx + 1,
-          title: u,
-          keywords: u.toLowerCase().split(/\s+/),
-        })),
-      };
-    });
-
-    saveLocalSubjects(templateSubjects);
-
     if (isSupabaseConfigured && supabase) {
       try {
-        for (const item of SAMPLE_2ND_YEAR_SUBJECTS) {
-          const { data: sub } = await supabase
+        for (const sample of SAMPLE_2ND_YEAR_SUBJECTS) {
+          const { data: insertedSub } = await supabase
             .from('subjects')
-            .insert({ 
+            .insert({
               user_id: user?.id,
-              name: item.name, 
-              code: item.code, 
-              color: item.color 
+              name: sample.name,
+              code: sample.code,
+              color: sample.color,
             })
             .select()
             .single();
-          if (sub) {
-            const unitsToInsert = item.units.map((u, i) => ({
-              subject_id: sub.id,
+
+          if (insertedSub) {
+            const unitsToInsert = sample.units.map((unitTitle, i) => ({
+              subject_id: insertedSub.id,
               unit_number: i + 1,
-              title: u,
+              title: unitTitle,
+              keywords: [sample.name, `Unit ${i + 1}`],
             }));
             await supabase.from('units').insert(unitsToInsert);
           }
         }
         loadInitialData();
-      } catch (e) {
-        console.warn('Template cloud sync warning:', e);
+        return;
+      } catch (err) {
+        console.warn('Template load cloud error:', err);
       }
     }
+
+    const templateSubjects: Subject[] = SAMPLE_2ND_YEAR_SUBJECTS.map((sample, idx) => {
+      const subjectId = `sample_${Date.now()}_${idx}`;
+      return {
+        id: subjectId,
+        name: sample.name,
+        code: sample.code,
+        color: sample.color,
+        units: sample.units.map((unitTitle, i) => ({
+          id: `${subjectId}_u_${i + 1}`,
+          subject_id: subjectId,
+          unit_number: i + 1,
+          title: unitTitle,
+          keywords: [sample.name, `Unit ${i + 1}`],
+        })),
+      };
+    });
+
+    saveLocalSubjects(templateSubjects);
   };
 
   const handleUploadComplete = (newNote: Note) => {
-    const updated = [newNote, ...notes];
-    saveLocalNotes(updated);
-    setIncomingSharedFile(null);
+    setNotes((prev) => [newNote, ...prev]);
+    saveLocalNotes([newNote, ...notes]);
     setActiveTab('shelf');
+    setIncomingSharedFile(null);
   };
 
   const handleDeleteNote = async (noteId: string) => {
     if (isSupabaseConfigured && supabase) {
       try {
         await supabase.from('notes').delete().eq('id', noteId);
-      } catch (e) {
-        console.warn(e);
+        setNotes((prev) => prev.filter((n) => n.id !== noteId));
+        return;
+      } catch (err) {
+        console.warn('Delete note error:', err);
       }
     }
+
     const updated = notes.filter((n) => n.id !== noteId);
     saveLocalNotes(updated);
   };
@@ -344,8 +359,39 @@ export function App() {
   const handleSignOut = async () => {
     await signOutUser();
     setUser(null);
-    setSubjects([]);
-    setNotes([]);
+    setIsGuest(false);
+  };
+
+  // Word-for-Word Voice Readout using Native Web Speech API
+  const handleVoiceRead = (note: Note) => {
+    if (!('speechSynthesis' in window)) {
+      alert('Speech reading is not supported on this browser.');
+      return;
+    }
+
+    if (isSpeaking) {
+      window.speechSynthesis.cancel();
+      setIsSpeaking(false);
+      return;
+    }
+
+    const textToRead = note.summary 
+      ? `${note.clean_title}. ${note.summary}`
+      : note.clean_title;
+
+    const utterance = new SpeechSynthesisUtterance(textToRead);
+    utterance.rate = 1.0;
+    utterance.pitch = 1.0;
+    utterance.onend = () => setIsSpeaking(false);
+    utterance.onerror = () => setIsSpeaking(false);
+
+    window.speechSynthesis.speak(utterance);
+    setIsSpeaking(true);
+  };
+
+  const handleOpenBot = (note: Note) => {
+    setBotSelectedNote(note);
+    setIsBotOpen(true);
   };
 
   const isConfigured = Boolean(isSupabaseConfigured && isAIConfigured());
@@ -364,6 +410,8 @@ export function App() {
         <SettingsModal
           isOpen={isSettingsOpen}
           onClose={() => setIsSettingsOpen(false)}
+          user={user}
+          onSignOut={handleSignOut}
         />
       </div>
     );
@@ -371,7 +419,7 @@ export function App() {
 
   return (
     <div className="min-h-screen text-slate-100 flex flex-col font-sans relative overflow-x-hidden">
-      {/* Refined ambient background */}
+      {/* Ambient background */}
       <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden">
         <div className="absolute top-[-5%] left-[-5%] w-[300px] h-[300px] rounded-full bg-cyan-600/10 blur-[80px]"></div>
         <div className="absolute bottom-[-5%] right-[-5%] w-[320px] h-[320px] rounded-full bg-blue-600/10 blur-[90px]"></div>
@@ -398,6 +446,8 @@ export function App() {
             notes={notes}
             onDeleteNote={handleDeleteNote}
             onOpenUpload={() => setActiveTab('upload')}
+            onOpenBot={handleOpenBot}
+            onVoiceRead={handleVoiceRead}
           />
         )}
 
@@ -420,9 +470,21 @@ export function App() {
         )}
       </main>
 
+      {/* MOVE ON Bot Slide-out Drawer */}
+      <MoveOnChat
+        isOpen={isBotOpen}
+        onClose={() => setIsBotOpen(false)}
+        selectedNote={botSelectedNote}
+        selectedSubject={subjects.find(s => s.id === botSelectedNote?.subject_id) || null}
+        onVoiceRead={handleVoiceRead}
+      />
+
+      {/* Clean Settings Modal (Live Credit Meter, Sign Out, Admin Reload) */}
       <SettingsModal
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
+        user={user}
+        onSignOut={handleSignOut}
       />
     </div>
   );

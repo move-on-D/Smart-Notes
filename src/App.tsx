@@ -454,6 +454,7 @@ export function App() {
             initialFile={incomingSharedFile}
             onUploadComplete={handleUploadComplete}
             onOpenSettings={() => setIsSettingsOpen(true)}
+            onAddSubject={handleAddSubject}
           />
         )}
       </main>

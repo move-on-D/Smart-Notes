@@ -1,5 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { UploadCloud, FileText, Sparkles, CheckCircle2, RefreshCw, AlertCircle, ArrowRight } from 'lucide-react';
+import { 
+  UploadCloud, FileText, Sparkles, CheckCircle2, RefreshCw, 
+  AlertCircle, ArrowRight, AlertTriangle, PlusCircle 
+} from 'lucide-react';
 import { Subject, AIClassificationResult, Note } from '../types';
 import { universalClassifyNote, isAIConfigured } from '../lib/ai';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
@@ -9,6 +12,7 @@ interface UploadModalProps {
   initialFile?: File | null;
   onUploadComplete: (newNote: Note) => void;
   onOpenSettings: () => void;
+  onAddSubject?: (subject: Omit<Subject, 'id'>, units: any[]) => void;
 }
 
 export const UploadModal: React.FC<UploadModalProps> = ({
@@ -16,17 +20,22 @@ export const UploadModal: React.FC<UploadModalProps> = ({
   initialFile,
   onUploadComplete,
   onOpenSettings,
+  onAddSubject,
 }) => {
   const [file, setFile] = useState<File | null>(initialFile || null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Note form state
+  // Form state
   const [selectedSubjectId, setSelectedSubjectId] = useState<string>(subjects[0]?.id || '');
   const [editedTitle, setEditedTitle] = useState<string>(initialFile?.name || '');
   const [summary, setSummary] = useState<string>('');
   const [aiResult, setAiResult] = useState<AIClassificationResult | null>(null);
+
+  // AI Subject Mismatch Warning & New Shelf option
+  const [mismatchWarning, setMismatchWarning] = useState<string | null>(null);
+  const [suggestedNewSubject, setSuggestedNewSubject] = useState<string | null>(null);
 
   useEffect(() => {
     if (initialFile) {
@@ -35,7 +44,6 @@ export const UploadModal: React.FC<UploadModalProps> = ({
       if (!selectedSubjectId && subjects.length > 0) {
         setSelectedSubjectId(subjects[0].id);
       }
-      // Auto trigger AI on incoming shared file
       runUniversalAI(initialFile);
     }
   }, [initialFile, subjects]);
@@ -51,12 +59,13 @@ export const UploadModal: React.FC<UploadModalProps> = ({
 
     setFile(selectedFile);
     setError(null);
+    setMismatchWarning(null);
+    setSuggestedNewSubject(null);
     setEditedTitle(selectedFile.name);
     if (!selectedSubjectId && subjects.length > 0) {
       setSelectedSubjectId(subjects[0].id);
     }
 
-    // Auto trigger AI immediately upon drop/select for instant zero-hassle renaming
     runUniversalAI(selectedFile);
   };
 
@@ -64,15 +73,10 @@ export const UploadModal: React.FC<UploadModalProps> = ({
     const target = fileToAnalyze || file;
     if (!target) return;
 
-    if (!isAIConfigured()) {
-      // Still allows manual filing even if AI key is not loaded
-      return;
-    }
-
-    if (subjects.length === 0) return;
-
     setIsAnalyzing(true);
     setError(null);
+    setMismatchWarning(null);
+    setSuggestedNewSubject(null);
 
     try {
       const result = await universalClassifyNote(target, subjects);
@@ -80,11 +84,23 @@ export const UploadModal: React.FC<UploadModalProps> = ({
       setEditedTitle(result.cleanTitle);
       setSummary(result.summary || '');
 
-      const matchedSubject = subjects.find(
-        (s) => s.name.toLowerCase() === result.subjectName.toLowerCase()
+      // Check if AI detected subject belongs to an existing subject
+      const detectedName = result.subjectName.trim().toLowerCase();
+      const existingMatch = subjects.find(
+        (s) => s.name.toLowerCase() === detectedName || 
+               s.name.toLowerCase().includes(detectedName) ||
+               detectedName.includes(s.name.toLowerCase())
       );
-      if (matchedSubject) {
-        setSelectedSubjectId(matchedSubject.id);
+
+      if (existingMatch) {
+        // Automatically lock and point directly to that subject shelf!
+        setSelectedSubjectId(existingMatch.id);
+      } else {
+        // AI found this PDF is from a different subject (e.g. Java notes when only Maths exists)
+        setSuggestedNewSubject(result.subjectName);
+        setMismatchWarning(
+          `AI detected this note is for "${result.subjectName}", which does not match any existing shelf. Do not mix it into another subject!`
+        );
       }
     } catch (err: any) {
       console.warn('AI analysis error:', err?.message || err);
@@ -93,10 +109,43 @@ export const UploadModal: React.FC<UploadModalProps> = ({
     }
   };
 
+  // Create a brand new dedicated shelf if note subject does not exist
+  const handleCreateSuggestedShelf = () => {
+    if (!suggestedNewSubject || !onAddSubject) return;
+
+    const colors = ['#0284c7', '#06b6d4', '#10b981', '#3b82f6', '#8b5cf6', '#ec4899', '#f59e0b'];
+    const randomColor = colors[Math.floor(Math.random() * colors.length)];
+
+    onAddSubject(
+      {
+        name: suggestedNewSubject,
+        code: suggestedNewSubject.slice(0, 3).toUpperCase() + '101',
+        color: randomColor,
+      },
+      []
+    );
+
+    setMismatchWarning(null);
+    setSuggestedNewSubject(null);
+  };
+
   const handleSaveToShelf = async () => {
     if (!file || !selectedSubjectId) {
-      setError('Please select a subject for this note.');
+      setError('Please select a dedicated shelf for this note.');
       return;
+    }
+
+    // STRICT CHECK: Warn if user is forcing a note into a mismatched shelf
+    const currentSub = subjects.find(s => s.id === selectedSubjectId);
+    if (aiResult && currentSub) {
+      const aiSub = aiResult.subjectName.toLowerCase();
+      const shelfName = currentSub.name.toLowerCase();
+      if (!shelfName.includes(aiSub) && !aiSub.includes(shelfName) && aiResult.confidence > 0.8) {
+        const confirmSave = window.confirm(
+          `⚠️ STRICT SHELF WARNING: AI detected this PDF is for "${aiResult.subjectName}", but you selected "${currentSub.name}". Each shelf must contain only one subject. Are you sure you want to proceed?`
+        );
+        if (!confirmSave) return;
+      }
     }
 
     setIsSaving(true);
@@ -201,10 +250,10 @@ export const UploadModal: React.FC<UploadModalProps> = ({
           </div>
           <div>
             <h2 className="text-xl font-black bg-gradient-to-r from-white via-sky-200 to-cyan-400 bg-clip-text text-transparent">
-              Ingest & Shelve Notes
+              Ingest & File Note
             </h2>
             <p className="text-xs text-sky-200/60 mt-0.5">
-              Drop college PDFs or share from WhatsApp. Auto-names and files in 1 click.
+              AI auto-identifies the exact subject and prevents cross-subject clutter.
             </p>
           </div>
         </div>
@@ -213,6 +262,30 @@ export const UploadModal: React.FC<UploadModalProps> = ({
           <div className="mb-4 p-3 bg-red-950/60 border border-red-500/40 rounded-xl text-red-200 text-xs flex items-center space-x-2">
             <AlertCircle className="w-4 h-4 text-red-400 shrink-0" />
             <span>{error}</span>
+          </div>
+        )}
+
+        {/* AI Subject Mismatch Warning Banner */}
+        {mismatchWarning && (
+          <div className="mb-4 p-4 bg-amber-950/70 border border-amber-500/50 rounded-2xl text-amber-200 text-xs space-y-2.5 animate-slide-down">
+            <div className="flex items-start space-x-2.5">
+              <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
+              <div>
+                <p className="font-bold text-amber-300">Subject Mismatch Detected!</p>
+                <p className="text-[11px] text-amber-200/90 mt-0.5">{mismatchWarning}</p>
+              </div>
+            </div>
+
+            {suggestedNewSubject && onAddSubject && (
+              <button
+                type="button"
+                onClick={handleCreateSuggestedShelf}
+                className="w-full py-2 px-3 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl text-xs flex items-center justify-center space-x-1.5 transition-all shadow-md active:scale-95"
+              >
+                <PlusCircle className="w-4 h-4" />
+                <span>Create New Dedicated Shelf for "{suggestedNewSubject}"</span>
+              </button>
+            )}
           </div>
         )}
 
@@ -265,15 +338,20 @@ export const UploadModal: React.FC<UploadModalProps> = ({
                 ) : (
                   <Sparkles className="w-3.5 h-3.5 text-cyan-300" />
                 )}
-                <span>{isAnalyzing ? 'Extracting Topics...' : 'Auto-Name with AI'}</span>
+                <span>{isAnalyzing ? 'Analyzing Subject...' : 'AI Auto-Detect Subject'}</span>
               </button>
             </div>
 
-            {/* Subject Shelf Picker */}
+            {/* Dedicated Subject Shelf Picker */}
             <div>
-              <label className="block text-[11px] font-bold text-sky-200 uppercase tracking-wider mb-1.5">
-                Subject Shelf *
-              </label>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-[11px] font-bold text-sky-200 uppercase tracking-wider">
+                  Target Dedicated Shelf *
+                </label>
+                <span className="text-[10px] text-cyan-300 font-medium">
+                  {aiResult?.subjectName ? `AI Suggested: ${aiResult.subjectName}` : '1 Subject Per Shelf'}
+                </span>
+              </div>
               <select
                 value={selectedSubjectId}
                 onChange={(e) => setSelectedSubjectId(e.target.value)}
@@ -292,7 +370,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({
               <label className="block text-[11px] font-bold text-sky-200 uppercase tracking-wider mb-1.5 flex items-center justify-between">
                 <span>Renamed Note Title</span>
                 <span className="text-sky-300/50 text-[10px] normal-case">
-                  Auto-filled by AI or type your own
+                  Auto-renamed by AI
                 </span>
               </label>
               <input
@@ -306,7 +384,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({
             {/* Extracted Key Topics / Summary */}
             <div>
               <label className="block text-[11px] font-bold text-sky-200 uppercase tracking-wider mb-1.5">
-                Topics Covered (Inside PDF)
+                Topics Covered
               </label>
               <input
                 type="text"
@@ -317,13 +395,15 @@ export const UploadModal: React.FC<UploadModalProps> = ({
               />
             </div>
 
-            {/* Action Buttons with prominent Tap Save */}
+            {/* Action Buttons */}
             <div className="flex items-center justify-between pt-4 border-t border-sky-400/20">
               <button
                 type="button"
                 onClick={() => {
                   setFile(null);
                   setAiResult(null);
+                  setMismatchWarning(null);
+                  setSuggestedNewSubject(null);
                 }}
                 className="text-xs text-sky-300 hover:text-white font-medium"
               >

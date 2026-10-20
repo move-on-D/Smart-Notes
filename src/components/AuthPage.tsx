@@ -104,7 +104,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({
             <Lock className="w-6 h-6 text-cyan-100" />
           </div>
           <h1 className="text-2xl font-black bg-gradient-to-r from-white via-sky-200 to-cyan-400 bg-clip-text text-transparent">
-            {isSignUp ? 'Create Your Account' : 'Welcome to SyllabusShelf'}
+            {isSignUp ? 'Create Your Account' : 'Welcome to Notes Shelf'}
           </h1>
           <p className="text-xs text-sky-200/60 mt-1">
             {isSignUp

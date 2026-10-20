@@ -1,15 +1,16 @@
 import React, { useState } from 'react';
 import { 
   Search, Download, ExternalLink, Trash2, BookOpen, Folder, 
-  Sparkles, Bot, ChevronRight, ArrowLeft, FileText, Layers
+  Sparkles, Bot, ChevronRight, ArrowLeft, FileText, Layers, PlusCircle, UploadCloud
 } from 'lucide-react';
+import { CupboardIcon } from './CupboardIcon';
 import { Subject, Note } from '../types';
 
 interface ShelfViewProps {
   subjects: Subject[];
   notes: Note[];
   onDeleteNote: (noteId: string) => Promise<void>;
-  onOpenUpload: () => void;
+  onOpenUpload: (subjectId?: string) => void;
   onOpenBot: (note: Note) => void;
 }
 
@@ -71,8 +72,8 @@ export const ShelfView: React.FC<ShelfViewProps> = ({
           ) : null}
 
           <h1 className="text-xl sm:text-2xl font-black tracking-tight flex items-center gap-2">
-            <span className="w-8 h-8 rounded-xl bg-cyan-500/20 border border-cyan-400/40 flex items-center justify-center text-cyan-300 glass-shard-1 shadow-sm shadow-cyan-500/20">
-              <BookOpen className="w-4 h-4" />
+            <span className="w-9 h-9 rounded-xl bg-cyan-500/20 border border-cyan-400/40 flex items-center justify-center text-cyan-300 glass-shard-1 shadow-sm shadow-cyan-500/20 p-1">
+              <CupboardIcon className="w-full h-full text-cyan-300" />
             </span>
             <span className="bg-gradient-to-r from-white via-sky-200 to-cyan-400 bg-clip-text text-transparent">
               {activeSubject ? activeSubject.name : 'Digital Subject Shelves'}
@@ -110,7 +111,34 @@ export const ShelfView: React.FC<ShelfViewProps> = ({
       {/* 1. HOME VIEW: VERTICAL STACK OF SUBJECT SHELVES (NO NOTES SHOWN) */}
       {/* ======================================================== */}
       {!activeSubject ? (
-        <div className="space-y-3.5 animate-fade-in">
+        <div className="space-y-4 animate-fade-in">
+          {/* Quick Add Banner for Laptop & Desktop */}
+          <div className="glass-panel p-4 rounded-2xl border border-sky-400/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-lg shadow-sky-950/30 bg-gradient-to-r from-sky-950/70 via-slate-900/60 to-cyan-950/50">
+            <div className="flex items-center space-x-3.5">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-cyan-500/20 to-blue-600/30 border border-cyan-400/40 flex items-center justify-center text-cyan-300 shadow-md p-1.5 shrink-0">
+                <CupboardIcon className="w-full h-full text-cyan-300" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-sm font-bold text-white">Add Notes to Shelf</h3>
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 font-bold border border-cyan-400/30">
+                    Instant Auto-Filing
+                  </span>
+                </div>
+                <p className="text-xs text-sky-200/60 mt-0.5">
+                  Drag &amp; drop any file from Windows Explorer or Downloads anywhere onto the screen, or click Add Note
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => onOpenUpload()}
+              className="flex items-center justify-center space-x-1.5 px-4 py-2.5 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white rounded-xl text-xs font-bold shadow-md shadow-cyan-500/25 border border-cyan-300/30 transition-all active:scale-95 shrink-0"
+            >
+              <PlusCircle className="w-4 h-4" />
+              <span>+ Add Note to Shelf</span>
+            </button>
+          </div>
+
           {subjects.length === 0 ? (
             <div className="text-center py-16 glass-panel rounded-3xl border border-dashed border-sky-400/20 p-6 shadow-xl">
               <div className="w-12 h-12 bg-cyan-500/15 border border-cyan-400/30 text-cyan-300 rounded-2xl flex items-center justify-center mx-auto mb-3 glass-shard-1 shadow-md shadow-cyan-500/20">
@@ -121,7 +149,7 @@ export const ShelfView: React.FC<ShelfViewProps> = ({
                 Create your first subject shelf to start organizing your college lecture PDFs.
               </p>
               <button
-                onClick={onOpenUpload}
+                onClick={() => onOpenUpload()}
                 className="inline-flex items-center space-x-1.5 px-4 py-2 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white rounded-xl text-xs font-bold shadow-md shadow-cyan-500/25 border border-cyan-300/30 transition-all active:scale-95"
               >
                 <Sparkles className="w-3.5 h-3.5 text-cyan-200" />
@@ -179,8 +207,20 @@ export const ShelfView: React.FC<ShelfViewProps> = ({
                       </div>
                     </div>
 
-                    {/* Right: Badge & Chevron */}
-                    <div className="flex items-center space-x-3 shrink-0 pl-2">
+                    {/* Right: Quick Add + Badge + Chevron */}
+                    <div className="flex items-center space-x-2.5 shrink-0 pl-2">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onOpenUpload(sub.id);
+                        }}
+                        className="hidden sm:inline-flex items-center space-x-1 px-3 py-1.5 rounded-xl bg-cyan-500/10 hover:bg-cyan-500/25 text-cyan-300 border border-cyan-400/30 text-xs font-bold transition-all shadow-sm active:scale-95"
+                        title={`Add note directly to ${sub.name}`}
+                      >
+                        <PlusCircle className="w-3.5 h-3.5" />
+                        <span>Add Note</span>
+                      </button>
+
                       <span className="text-xs font-bold px-3 py-1 rounded-xl bg-cyan-500/15 text-cyan-300 border border-cyan-400/30">
                         {count} {count === 1 ? 'Note' : 'Notes'}
                       </span>
@@ -214,10 +254,11 @@ export const ShelfView: React.FC<ShelfViewProps> = ({
             </div>
 
             <button
-              onClick={onOpenUpload}
-              className="px-3.5 py-1.5 rounded-xl bg-white text-slate-900 font-bold text-xs shadow-md hover:bg-slate-100 active:scale-95 transition-all"
+              onClick={() => onOpenUpload(activeSubject.id)}
+              className="px-3.5 py-1.5 rounded-xl bg-white text-slate-900 font-bold text-xs shadow-md hover:bg-slate-100 active:scale-95 transition-all flex items-center space-x-1.5"
             >
-              + Add Note Here
+              <PlusCircle className="w-3.5 h-3.5 text-slate-900" />
+              <span>+ Add Note to {activeSubject.name}</span>
             </button>
           </div>
 
@@ -229,10 +270,11 @@ export const ShelfView: React.FC<ShelfViewProps> = ({
                 This shelf is empty. Upload or drop a note to file it directly here.
               </p>
               <button
-                onClick={onOpenUpload}
-                className="px-4 py-2 bg-gradient-to-r from-cyan-500 to-blue-600 text-white rounded-xl text-xs font-bold"
+                onClick={() => onOpenUpload(activeSubject.id)}
+                className="px-4 py-2 bg-gradient-to-r from-cyan-500 to-blue-600 text-white rounded-xl text-xs font-bold flex items-center space-x-1.5 mx-auto active:scale-95 transition-all"
               >
-                Upload to {activeSubject.name}
+                <PlusCircle className="w-4 h-4" />
+                <span>Upload to {activeSubject.name}</span>
               </button>
             </div>
           ) : (
@@ -261,63 +303,54 @@ export const ShelfView: React.FC<ShelfViewProps> = ({
                       {note.clean_title}
                     </h3>
 
-                    {/* Original Filename */}
-                    <p className="text-[10px] text-sky-300/50 font-mono mt-0.5 truncate">
+                    {/* Original filename */}
+                    <p className="text-[10px] text-sky-400/50 font-mono truncate mt-1">
                       {note.original_filename}
                     </p>
 
-                    {/* Summary / Topic Preview */}
+                    {/* Topics / Summary Preview */}
                     {note.summary && (
-                      <p className="text-xs text-sky-100/80 mt-2.5 line-clamp-2 bg-sky-950/40 p-2 rounded-lg border border-sky-400/15 italic text-[11px]">
-                        "{note.summary}"
+                      <p className="text-xs text-sky-200/70 mt-2 line-clamp-2 bg-sky-950/50 p-2 rounded-xl border border-sky-400/15">
+                        {note.summary}
                       </p>
                     )}
                   </div>
 
-                  {/* Note Actions */}
-                  <div className="px-3.5 py-2.5 bg-sky-950/70 border-t border-sky-400/20 flex items-center justify-between text-xs relative z-10 backdrop-blur-md">
-                    {/* Ask MOVE ON bot */}
-                    <button
-                      onClick={() => onOpenBot(note)}
-                      title="Ask MOVE ON bot about this chapter"
-                      className="flex items-center space-x-1 px-2.5 py-1 rounded-lg text-xs font-bold bg-sky-900/60 hover:bg-cyan-500/20 text-cyan-300 border border-cyan-400/30 transition-all active:scale-95 shadow-sm"
-                    >
-                      <Bot className="w-3.5 h-3.5 text-cyan-300" />
-                      <span>MOVE ON</span>
-                    </button>
-
-                    {/* Open & Download */}
+                  {/* Note Action Toolbar */}
+                  <div className="px-4 py-3 bg-sky-950/40 border-t border-sky-400/15 flex items-center justify-between relative z-10 gap-2">
                     <div className="flex items-center space-x-1.5">
+                      {/* Open / Download PDF */}
                       {note.file_url && (
                         <a
                           href={note.file_url}
                           target="_blank"
-                          rel="noreferrer"
-                          className="inline-flex items-center space-x-1 px-2.5 py-1 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white rounded-lg text-xs font-bold shadow-sm shadow-cyan-500/25 border border-cyan-300/40 transition-all active:scale-95"
-                          title="Open & Read Note"
+                          rel="noopener noreferrer"
+                          className="p-1.5 rounded-lg text-sky-300 hover:text-white hover:bg-sky-800/40 transition-colors"
+                          title="Open PDF Document"
                         >
-                          <ExternalLink className="w-3 h-3" />
-                          <span>Open</span>
+                          <ExternalLink className="w-3.5 h-3.5" />
                         </a>
                       )}
 
-                      <a
-                        href={note.file_url || '#'}
-                        download={note.clean_title}
-                        className="p-1 text-cyan-300 hover:text-white bg-sky-900/40 hover:bg-sky-800/60 border border-sky-400/25 rounded-lg transition-all"
-                        title="Download PDF"
-                      >
-                        <Download className="w-3 h-3" />
-                      </a>
-
+                      {/* MOVE ON Bot Button */}
                       <button
-                        onClick={() => onDeleteNote(note.id)}
-                        className="p-1 text-sky-400/40 hover:text-red-400 hover:bg-red-950/40 rounded-lg transition-colors"
-                        title="Delete Note"
+                        onClick={() => onOpenBot(note)}
+                        className="flex items-center space-x-1 px-2.5 py-1 rounded-lg bg-gradient-to-r from-cyan-500/20 to-blue-600/20 hover:from-cyan-500/30 hover:to-blue-600/30 border border-cyan-400/40 text-[11px] font-bold text-cyan-300 shadow-sm transition-all"
+                        title="Ask MOVE ON Bot from this note"
                       >
-                        <Trash2 className="w-3 h-3" />
+                        <Bot className="w-3.5 h-3.5 text-cyan-300" />
+                        <span>MOVE ON</span>
                       </button>
                     </div>
+
+                    {/* Delete Note */}
+                    <button
+                      onClick={() => onDeleteNote(note.id)}
+                      className="p-1.5 rounded-lg text-sky-400/40 hover:text-red-400 hover:bg-red-950/30 transition-colors"
+                      title="Delete Note"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
                   </div>
                 </div>
               ))}

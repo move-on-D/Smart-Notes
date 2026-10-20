@@ -3,21 +3,23 @@ import {
   UploadCloud, FileText, Sparkles, CheckCircle2, RefreshCw, 
   AlertCircle, ArrowRight, AlertTriangle, PlusCircle 
 } from 'lucide-react';
-import { Subject, AIClassificationResult, Note } from '../types';
+import { Subject, Unit, AIClassificationResult, Note } from '../types';
 import { universalClassifyNote, isAIConfigured } from '../lib/ai';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 
 interface UploadModalProps {
   subjects: Subject[];
   initialFile?: File | null;
+  preselectedSubjectId?: string | null;
   onUploadComplete: (newNote: Note) => void;
   onOpenSettings: () => void;
-  onAddSubject?: (subject: Omit<Subject, 'id'>, units: any[]) => void;
+  onAddSubject?: (subject: Omit<Subject, 'id'>, units: Omit<Unit, 'id' | 'subject_id'>[]) => void;
 }
 
 export const UploadModal: React.FC<UploadModalProps> = ({
   subjects,
   initialFile,
+  preselectedSubjectId,
   onUploadComplete,
   onOpenSettings,
   onAddSubject,
@@ -28,7 +30,9 @@ export const UploadModal: React.FC<UploadModalProps> = ({
   const [error, setError] = useState<string | null>(null);
 
   // Form state
-  const [selectedSubjectId, setSelectedSubjectId] = useState<string>(subjects[0]?.id || '');
+  const [selectedSubjectId, setSelectedSubjectId] = useState<string>(
+    preselectedSubjectId || subjects[0]?.id || ''
+  );
   const [editedTitle, setEditedTitle] = useState<string>(initialFile?.name || '');
   const [summary, setSummary] = useState<string>('');
   const [aiResult, setAiResult] = useState<AIClassificationResult | null>(null);
@@ -38,11 +42,17 @@ export const UploadModal: React.FC<UploadModalProps> = ({
   const [suggestedNewSubject, setSuggestedNewSubject] = useState<string | null>(null);
 
   useEffect(() => {
+    if (preselectedSubjectId) {
+      setSelectedSubjectId(preselectedSubjectId);
+    }
+  }, [preselectedSubjectId]);
+
+  useEffect(() => {
     if (initialFile) {
       setFile(initialFile);
       setEditedTitle(initialFile.name);
       if (!selectedSubjectId && subjects.length > 0) {
-        setSelectedSubjectId(subjects[0].id);
+        setSelectedSubjectId(preselectedSubjectId || subjects[0].id);
       }
       runUniversalAI(initialFile);
     }
@@ -52,18 +62,13 @@ export const UploadModal: React.FC<UploadModalProps> = ({
     const selectedFile = e.target.files?.[0];
     if (!selectedFile) return;
 
-    if (selectedFile.type !== 'application/pdf' && !selectedFile.name.endsWith('.pdf')) {
-      setError('Please upload a PDF file.');
-      return;
-    }
-
     setFile(selectedFile);
     setError(null);
     setMismatchWarning(null);
     setSuggestedNewSubject(null);
     setEditedTitle(selectedFile.name);
     if (!selectedSubjectId && subjects.length > 0) {
-      setSelectedSubjectId(subjects[0].id);
+      setSelectedSubjectId(preselectedSubjectId || subjects[0].id);
     }
 
     runUniversalAI(selectedFile);
@@ -303,7 +308,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({
             </p>
             <input
               type="file"
-              accept=".pdf,application/pdf"
+              accept=".pdf,.docx,.doc,.txt,.pptx,application/pdf,application/*,*/*"
               className="hidden"
               onChange={handleFileSelect}
             />

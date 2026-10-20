@@ -1,5 +1,6 @@
 import React from 'react';
-import { BookOpen, PlusCircle, Settings, Sparkles, Download, User as UserIcon, LogOut, LogIn } from 'lucide-react';
+import { PlusCircle, Settings, User as UserIcon, LogOut, LogIn } from 'lucide-react';
+import { CupboardIcon } from './CupboardIcon';
 
 interface NavbarProps {
   activeTab: 'shelf' | 'syllabus' | 'upload';
@@ -25,22 +26,22 @@ export const Navbar: React.FC<NavbarProps> = ({
   return (
     <header className="sticky top-0 z-40 glass-panel border-b border-sky-400/20 shadow-lg shadow-sky-950/40 backdrop-blur-2xl">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-        {/* Brand Logo with Crystalline Shard Accent */}
+        {/* Brand Logo with Cupboard & Books */}
         <div 
           className="flex items-center space-x-3 cursor-pointer group" 
           onClick={() => setActiveTab('shelf')}
         >
           <div className="relative">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-cyan-500 via-sky-600 to-blue-700 flex items-center justify-center text-white shadow-lg shadow-cyan-500/30 border border-cyan-300/40 group-hover:scale-105 transition-transform glass-shard-1">
-              <BookOpen className="w-4 h-4 text-cyan-100" />
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-cyan-500 via-sky-600 to-blue-700 flex items-center justify-center text-white shadow-lg shadow-cyan-500/30 border border-cyan-300/40 group-hover:scale-105 transition-transform glass-shard-1 p-1.5">
+              <CupboardIcon className="w-full h-full text-white" />
             </div>
-            <div className="absolute -top-1 -right-1 w-2 h-2 bg-cyan-300 rounded-full blur-[1px] animate-pulse"></div>
+            <div className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-cyan-300 rounded-full blur-[1px] animate-pulse"></div>
           </div>
 
           <div>
             <span className="font-extrabold text-base sm:text-lg tracking-tight flex items-center gap-1.5">
               <span className="bg-gradient-to-r from-white via-sky-200 to-cyan-400 bg-clip-text text-transparent">
-                SyllabusShelf
+                Notes Shelf
               </span>
               <span className="bg-sky-500/20 text-cyan-300 text-[9px] px-1.5 py-0.2 rounded-full font-bold border border-cyan-400/30">
                 PRO
@@ -76,10 +77,10 @@ export const Navbar: React.FC<NavbarProps> = ({
 
           <button
             onClick={() => setActiveTab('upload')}
-            className="flex items-center space-x-1 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white px-3 py-1.5 rounded-xl text-xs sm:text-sm font-bold transition-all shadow-md shadow-cyan-500/25 active:scale-95 border border-cyan-300/30"
+            className="flex items-center space-x-1.5 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white px-3.5 py-1.5 rounded-xl text-xs sm:text-sm font-bold transition-all shadow-md shadow-cyan-500/25 active:scale-95 border border-cyan-300/30"
           >
-            <PlusCircle className="w-3.5 h-3.5" />
-            <span>Upload</span>
+            <PlusCircle className="w-4 h-4" />
+            <span>Add to Shelf</span>
           </button>
 
           {/* User Account / Profile Badge when signed in */}
@@ -99,24 +100,31 @@ export const Navbar: React.FC<NavbarProps> = ({
                 title="Sign Out"
                 className="p-1.5 rounded-xl text-sky-400/60 hover:text-red-400 hover:bg-red-950/30 border border-transparent hover:border-red-500/30 transition-all"
               >
-                <LogOut className="w-3.5 h-3.5" />
+                <LogOut className="w-4 h-4" />
               </button>
             </div>
           )}
 
-          {/* Settings Button */}
+          {/* If Guest Mode, show Sign In button */}
+          {!user && (
+            <button
+              onClick={onOpenAuth}
+              className="px-2.5 py-1.5 rounded-xl text-xs font-semibold text-cyan-300 hover:text-white hover:bg-sky-900/40 border border-sky-400/20 flex items-center space-x-1 transition-all"
+            >
+              <LogIn className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Sign In</span>
+            </button>
+          )}
+
+          {/* Settings Trigger */}
           <button
             onClick={onOpenSettings}
-            title="Configure Cloud & AI Keys"
-            className={`p-1.5 rounded-xl transition-all relative border ${
-              isConfigured 
-                ? 'text-sky-300 hover:text-white bg-sky-950/40 border-sky-400/20 hover:bg-sky-900/50' 
-                : 'text-amber-300 bg-amber-950/40 border-amber-500/40 animate-pulse'
-            }`}
+            className="p-2 rounded-xl text-sky-300/70 hover:text-white hover:bg-sky-900/40 transition-colors border border-sky-400/20 relative"
+            title="App Settings"
           >
             <Settings className="w-4 h-4" />
             {!isConfigured && (
-              <span className="absolute top-1 right-1 w-2 h-2 bg-amber-400 rounded-full ring-2 ring-slate-900"></span>
+              <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-amber-400 animate-ping" />
             )}
           </button>
         </div>

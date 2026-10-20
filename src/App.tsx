@@ -6,6 +6,7 @@ import { UploadModal } from './components/UploadModal';
 import { SettingsModal } from './components/SettingsModal';
 import { AuthPage } from './components/AuthPage';
 import { MoveOnChat } from './components/MoveOnChat';
+import { CupboardIcon } from './components/CupboardIcon';
 import { Subject, Unit, Note } from './types';
 import { supabase, isSupabaseConfigured, signOutUser } from './lib/supabase';
 import { isAIConfigured } from './lib/ai';
@@ -13,6 +14,7 @@ import { isAIConfigured } from './lib/ai';
 declare global {
   interface Window {
     handleSharedFile?: (fileName: string, mimeType: string, base64Data: string) => void;
+    __PENDING_SHARED_NOTE__?: { fileName: string; mimeType: string; base64Data: string } | null;
   }
 }
 
@@ -93,6 +95,10 @@ export function App() {
   const [notes, setNotes] = useState<Note[]>([]);
   const [loading, setLoading] = useState(true);
   const [incomingSharedFile, setIncomingSharedFile] = useState<File | null>(null);
+  const [uploadPreselectedSubjectId, setUploadPreselectedSubjectId] = useState<string | null>(null);
+
+  // Global Drag-and-drop state for Laptop & Desktop
+  const [isDraggingOverWindow, setIsDraggingOverWindow] = useState(false);
 
   // Monitor Authentication (Supabase + Local Fallback)
   useEffect(() => {
@@ -124,14 +130,68 @@ export function App() {
     }
   }, []);
 
-  // Load user data whenever auth state changes
+  // Global window drag-and-drop listener for laptop/desktop
+  useEffect(() => {
+    let dragCounter = 0;
+
+    const handleWindowDragEnter = (e: DragEvent) => {
+      e.preventDefault();
+      dragCounter++;
+      if (e.dataTransfer?.items && e.dataTransfer.items.length > 0) {
+        setIsDraggingOverWindow(true);
+      }
+    };
+
+    const handleWindowDragOver = (e: DragEvent) => {
+      e.preventDefault();
+      if (e.dataTransfer) {
+        e.dataTransfer.dropEffect = 'copy';
+      }
+    };
+
+    const handleWindowDragLeave = (e: DragEvent) => {
+      e.preventDefault();
+      dragCounter--;
+      if (dragCounter <= 0) {
+        setIsDraggingOverWindow(false);
+        dragCounter = 0;
+      }
+    };
+
+    const handleWindowDrop = (e: DragEvent) => {
+      e.preventDefault();
+      setIsDraggingOverWindow(false);
+      dragCounter = 0;
+
+      if (e.dataTransfer?.files && e.dataTransfer.files.length > 0) {
+        const droppedFile = e.dataTransfer.files[0];
+        console.log('File dropped onto laptop window:', droppedFile.name);
+        setIncomingSharedFile(droppedFile);
+        setActiveTab('upload');
+      }
+    };
+
+    window.addEventListener('dragenter', handleWindowDragEnter);
+    window.addEventListener('dragover', handleWindowDragOver);
+    window.addEventListener('dragleave', handleWindowDragLeave);
+    window.addEventListener('drop', handleWindowDrop);
+
+    return () => {
+      window.removeEventListener('dragenter', handleWindowDragEnter);
+      window.removeEventListener('dragover', handleWindowDragOver);
+      window.removeEventListener('dragleave', handleWindowDragLeave);
+      window.removeEventListener('drop', handleWindowDrop);
+    };
+  }, []);
+
+  // Load user data whenever auth state changes & register native share listener
   useEffect(() => {
     loadInitialData();
 
-    // Register Native WhatsApp Share Bridge Listener
+    // Register Native Share Bridge Listener (Android & WhatsApp / Drive / Files)
     window.handleSharedFile = (fileName: string, mimeType: string, base64Data: string) => {
       try {
-        console.log('Received shared file from WhatsApp/Android:', fileName);
+        console.log('Received shared file from Android / Native Share:', fileName);
         const byteCharacters = atob(base64Data);
         const byteNumbers = new Array(byteCharacters.length);
         for (let i = 0; i < byteCharacters.length; i++) {
@@ -147,6 +207,13 @@ export function App() {
         console.error('Failed to process incoming shared file:', err);
       }
     };
+
+    // Check if there is already a pending shared note from MainActivity
+    if (window.__PENDING_SHARED_NOTE__ && window.__PENDING_SHARED_NOTE__.base64Data) {
+      const p = window.__PENDING_SHARED_NOTE__;
+      window.__PENDING_SHARED_NOTE__ = null;
+      window.handleSharedFile?.(p.fileName, p.mimeType, p.base64Data);
+    }
 
     // Live Realtime Sync across devices
     if (isSupabaseConfigured && supabase) {
@@ -225,131 +292,101 @@ export function App() {
   };
 
   const handleAddSubject = async (
-    subject: Omit<Subject, 'id'>,
-    units: Omit<Unit, 'id' | 'subject_id'>[]
+    newSub: Omit<Subject, 'id'>,
+    unitsData: Omit<Unit, 'id' | 'subject_id'>[]
   ) => {
-    const subjectId = String(Date.now());
-    const formattedUnits: Unit[] = units.map((u, i) => ({
-      id: `${subjectId}_u_${i + 1}`,
-      subject_id: subjectId,
-      unit_number: u.unit_number,
-      title: u.title,
-      keywords: u.keywords,
+    const localId = 'sub_' + Date.now();
+    const createdUnits: Unit[] = unitsData.map((u, i) => ({
+      id: 'unit_' + Date.now() + '_' + i,
+      subject_id: localId,
+      unit_number: u.unit_number || (i + 1),
+      title: u.title || (u as any).name || `Unit ${i + 1}`,
+      keywords: u.keywords || [],
     }));
 
-    const newSubject: Subject = {
-      ...subject,
-      id: subjectId,
-      units: formattedUnits,
+    const subjectWithUnits: Subject = {
+      ...newSub,
+      id: localId,
+      units: createdUnits,
     };
 
     if (isSupabaseConfigured && supabase) {
       try {
-        const { data: insertedSub } = await supabase
+        const { data: subResult, error: subErr } = await supabase
           .from('subjects')
           .insert({
-            user_id: user?.id,
-            name: subject.name,
-            code: subject.code,
-            color: subject.color,
+            name: newSub.name,
+            code: newSub.code,
+            color: newSub.color,
+            user_id: user?.id || null,
           })
           .select()
           .single();
 
-        if (insertedSub) {
-          const unitsToInsert = units.map((u) => ({
-            subject_id: insertedSub.id,
-            unit_number: u.unit_number,
-            title: u.title,
-            keywords: u.keywords,
-          }));
-          await supabase.from('units').insert(unitsToInsert);
-          loadInitialData();
+        if (subResult && !subErr) {
+          let insertedUnits: Unit[] = [];
+          if (unitsData.length > 0) {
+            const unitsToInsert = unitsData.map((u, idx) => ({
+              subject_id: subResult.id,
+              unit_number: u.unit_number || (idx + 1),
+              title: u.title || (u as any).name || `Unit ${idx + 1}`,
+              keywords: u.keywords || [],
+            }));
+            const { data: uRes } = await supabase.from('units').insert(unitsToInsert).select();
+            if (uRes) insertedUnits = uRes;
+          }
+
+          setSubjects([...subjects, { ...subResult, units: insertedUnits }]);
           return;
         }
       } catch (err) {
-        console.warn('Supabase subject insert fallback:', err);
+        console.warn('Supabase subject insert warning:', err);
       }
     }
 
-    const updated = [...subjects, newSubject];
-    saveLocalSubjects(updated);
+    saveLocalSubjects([...subjects, subjectWithUnits]);
   };
 
   const handleDeleteSubject = async (subjectId: string) => {
     if (isSupabaseConfigured && supabase) {
       try {
         await supabase.from('subjects').delete().eq('id', subjectId);
-        loadInitialData();
+        setSubjects((prev) => prev.filter((s) => s.id !== subjectId));
+        setNotes((prev) => prev.filter((n) => n.subject_id !== subjectId));
         return;
-      } catch (e) {
-        console.warn('Supabase delete subject error:', e);
+      } catch (err) {
+        console.warn('Supabase subject delete warning:', err);
       }
     }
 
     const updated = subjects.filter((s) => s.id !== subjectId);
     saveLocalSubjects(updated);
-    const updatedNotes = notes.filter((n) => n.subject_id !== subjectId);
-    saveLocalNotes(updatedNotes);
+    saveLocalNotes(notes.filter((n) => n.subject_id !== subjectId));
   };
 
   const handleLoadTemplate = async () => {
-    if (isSupabaseConfigured && supabase) {
-      try {
-        for (const sample of SAMPLE_2ND_YEAR_SUBJECTS) {
-          const { data: insertedSub } = await supabase
-            .from('subjects')
-            .insert({
-              user_id: user?.id,
-              name: sample.name,
-              code: sample.code,
-              color: sample.color,
-            })
-            .select()
-            .single();
-
-          if (insertedSub) {
-            const unitsToInsert = sample.units.map((unitTitle, i) => ({
-              subject_id: insertedSub.id,
-              unit_number: i + 1,
-              title: unitTitle,
-              keywords: [sample.name, `Unit ${i + 1}`],
-            }));
-            await supabase.from('units').insert(unitsToInsert);
-          }
-        }
-        loadInitialData();
-        return;
-      } catch (err) {
-        console.warn('Template load cloud error:', err);
-      }
+    for (const item of SAMPLE_2ND_YEAR_SUBJECTS) {
+      const units: Omit<Unit, 'id' | 'subject_id'>[] = item.units.map((uName, idx) => ({
+        unit_number: idx + 1,
+        title: uName,
+      }));
+      await handleAddSubject(
+        {
+          name: item.name,
+          code: item.code,
+          color: item.color,
+        },
+        units
+      );
     }
-
-    const templateSubjects: Subject[] = SAMPLE_2ND_YEAR_SUBJECTS.map((sample, idx) => {
-      const subjectId = `sample_${Date.now()}_${idx}`;
-      return {
-        id: subjectId,
-        name: sample.name,
-        code: sample.code,
-        color: sample.color,
-        units: sample.units.map((unitTitle, i) => ({
-          id: `${subjectId}_u_${i + 1}`,
-          subject_id: subjectId,
-          unit_number: i + 1,
-          title: unitTitle,
-          keywords: [sample.name, `Unit ${i + 1}`],
-        })),
-      };
-    });
-
-    saveLocalSubjects(templateSubjects);
   };
 
   const handleUploadComplete = (newNote: Note) => {
-    setNotes((prev) => [newNote, ...prev]);
+    setNotes([newNote, ...notes]);
     saveLocalNotes([newNote, ...notes]);
     setActiveTab('shelf');
     setIncomingSharedFile(null);
+    setUploadPreselectedSubjectId(null);
   };
 
   const handleDeleteNote = async (noteId: string) => {
@@ -381,6 +418,11 @@ export function App() {
   const handleOpenBot = (note: Note) => {
     setBotSelectedNote(note);
     setIsBotOpen(true);
+  };
+
+  const handleOpenUploadForSubject = (subjectId?: string) => {
+    setUploadPreselectedSubjectId(subjectId || null);
+    setActiveTab('upload');
   };
 
   const isConfigured = Boolean(isSupabaseConfigured && isAIConfigured());
@@ -418,6 +460,23 @@ export function App() {
         <div className="absolute bottom-28 left-1/4 w-12 h-16 bg-blue-400/5 border border-blue-300/15 backdrop-blur-[1px] glass-shard-1 rotate-45 opacity-20"></div>
       </div>
 
+      {/* Full-Screen Laptop Drop Zone Overlay */}
+      {isDraggingOverWindow && (
+        <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-md flex flex-col items-center justify-center pointer-events-none animate-fade-in border-4 border-dashed border-cyan-400/90 m-4 rounded-3xl shadow-2xl">
+          <div className="p-8 rounded-3xl bg-sky-950/90 border border-cyan-400 shadow-2xl flex flex-col items-center max-w-md text-center">
+            <div className="w-20 h-20 rounded-2xl bg-gradient-to-tr from-cyan-500 via-sky-600 to-blue-700 flex items-center justify-center text-white mb-4 shadow-xl shadow-cyan-500/30 animate-bounce p-3">
+              <CupboardIcon className="w-full h-full text-white" />
+            </div>
+            <h2 className="text-2xl font-black text-white mb-2">
+              Drop Note to Add to Shelf
+            </h2>
+            <p className="text-xs text-sky-200/80 max-w-xs">
+              Release anywhere to instantly auto-detect the subject and file your note into the cupboard!
+            </p>
+          </div>
+        </div>
+      )}
+
       <Navbar
         activeTab={activeTab}
         setActiveTab={setActiveTab}
@@ -434,7 +493,7 @@ export function App() {
             subjects={subjects}
             notes={notes}
             onDeleteNote={handleDeleteNote}
-            onOpenUpload={() => setActiveTab('upload')}
+            onOpenUpload={handleOpenUploadForSubject}
             onOpenBot={handleOpenBot}
           />
         )}
@@ -452,6 +511,7 @@ export function App() {
           <UploadModal
             subjects={subjects}
             initialFile={incomingSharedFile}
+            preselectedSubjectId={uploadPreselectedSubjectId}
             onUploadComplete={handleUploadComplete}
             onOpenSettings={() => setIsSettingsOpen(true)}
             onAddSubject={handleAddSubject}

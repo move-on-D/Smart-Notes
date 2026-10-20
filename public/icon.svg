@@ -1,9 +1,83 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
-  <rect width="512" height="512" rx="128" fill="#4f46e5"/>
-  <path d="M128 390V122C128 107.641 139.641 96 154 96H400V416H154C139.641 416 128 404.359 128 390Z" fill="white" fill-opacity="0.9"/>
-  <path d="M176 160H352" stroke="#4f46e5" stroke-width="24" stroke-linecap="round"/>
-  <path d="M176 224H352" stroke="#4f46e5" stroke-width="24" stroke-linecap="round"/>
-  <path d="M176 288H288" stroke="#4f46e5" stroke-width="24" stroke-linecap="round"/>
-  <circle cx="360" cy="340" r="48" fill="#10b981"/>
-  <path d="M344 340L356 352L378 330" stroke="white" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- Rounded Background with Deep Gradient -->
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#050f1d"/>
+      <stop offset="50%" stop-color="#0a233a"/>
+      <stop offset="100%" stop-color="#0284c7"/>
+    </linearGradient>
+    <linearGradient id="cupboardGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#0b172a"/>
+      <stop offset="100%" stop-color="#031d38"/>
+    </linearGradient>
+    <linearGradient id="shelfGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#0284c7"/>
+      <stop offset="50%" stop-color="#38bdf8"/>
+      <stop offset="100%" stop-color="#0284c7"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="512" height="512" rx="112" fill="url(#bgGrad)"/>
+  <rect x="6" y="6" width="500" height="500" rx="106" stroke="#38bdf8" stroke-width="4" stroke-opacity="0.4"/>
+
+  <!-- Cupboard Outer Cabinet Frame -->
+  <rect x="76" y="80" width="360" height="360" rx="16" fill="url(#cupboardGrad)" stroke="#0284c7" stroke-width="10"/>
+  <!-- Top Crown Arch -->
+  <rect x="64" y="68" width="384" height="24" rx="6" fill="#0369a1" stroke="#38bdf8" stroke-width="4"/>
+
+  <!-- Middle Shelf Divider -->
+  <rect x="76" y="246" width="360" height="18" fill="url(#shelfGrad)" rx="3"/>
+  <!-- Bottom Shelf Base -->
+  <rect x="68" y="426" width="376" height="22" fill="url(#shelfGrad)" rx="4"/>
+
+  <!-- Backboard Subtle Vertical Shimmer Stripes -->
+  <line x1="196" y1="92" x2="196" y2="426" stroke="#38bdf8" stroke-width="2" stroke-opacity="0.15"/>
+  <line x1="316" y1="92" x2="316" y2="426" stroke="#38bdf8" stroke-width="2" stroke-opacity="0.15"/>
+
+  <!-- ================= TOP SHELF BOOKS ================= -->
+  <!-- Book 1: Cyan Hardcover -->
+  <rect x="110" y="126" width="36" height="120" rx="4" fill="#06b6d4"/>
+  <line x1="116" y1="140" x2="140" y2="140" stroke="#e0f2fe" stroke-width="4" stroke-linecap="round"/>
+  <line x1="116" y1="152" x2="134" y2="152" stroke="#e0f2fe" stroke-width="3" stroke-linecap="round"/>
+
+  <!-- Book 2: Amber Study Guide -->
+  <rect x="154" y="146" width="32" height="100" rx="4" fill="#f59e0b"/>
+  <line x1="160" y1="162" x2="180" y2="162" stroke="#fef3c7" stroke-width="3" stroke-linecap="round"/>
+
+  <!-- Book 3: Emerald Lecture Notes -->
+  <rect x="194" y="132" width="36" height="114" rx="4" fill="#10b981"/>
+  <line x1="200" y1="148" x2="224" y2="148" stroke="#d1fae5" stroke-width="3.5" stroke-linecap="round"/>
+
+  <!-- Book 4: Crimson / Rose Leaning Book -->
+  <g transform="translate(244, 246) rotate(16)">
+    <rect x="0" y="-116" width="32" height="116" rx="4" fill="#f43f5e"/>
+    <line x1="6" y1="-100" x2="26" y2="-100" stroke="#ffe4e6" stroke-width="3" stroke-linecap="round"/>
+  </g>
+
+  <!-- Star sparkle on top shelf -->
+  <path d="M374 136 L378 148 L390 152 L378 156 L374 168 L370 156 L358 152 L370 148 Z" fill="#38bdf8"/>
+
+  <!-- ================= BOTTOM SHELF BOOKS ================= -->
+  <!-- Book 5: Violet Syllabus Binder -->
+  <rect x="110" y="306" width="40" height="120" rx="4" fill="#8b5cf6"/>
+  <line x1="118" y1="324" x2="142" y2="324" stroke="#ede9fe" stroke-width="4" stroke-linecap="round"/>
+  <circle cx="130" cy="380" r="5" fill="#ede9fe"/>
+
+  <!-- Book 6: Deep Blue Textbook -->
+  <rect x="158" y="294" width="36" height="132" rx="4" fill="#3b82f6"/>
+  <line x1="164" y1="312" x2="188" y2="312" stroke="#dbeafe" stroke-width="3" stroke-linecap="round"/>
+
+  <!-- Book 7: Gold Math Register -->
+  <rect x="202" y="324" width="32" height="102" rx="4" fill="#eab308"/>
+  <line x1="208" y1="340" x2="228" y2="340" stroke="#fef9c3" stroke-width="3" stroke-linecap="round"/>
+
+  <!-- Book 8: Teal Leaning Reference -->
+  <g transform="translate(250, 426) rotate(14)">
+    <rect x="0" y="-118" width="34" height="118" rx="4" fill="#14b8a6"/>
+    <line x1="6" y1="-102" x2="28" y2="-102" stroke="#ccfbf1" stroke-width="3" stroke-linecap="round"/>
+  </g>
+
+  <!-- Little Cupboard Knob handles -->
+  <circle cx="88" cy="255" r="4" fill="#38bdf8"/>
+  <circle cx="424" cy="255" r="4" fill="#38bdf8"/>
 </svg>

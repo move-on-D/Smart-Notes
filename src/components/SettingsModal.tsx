@@ -247,7 +247,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           className="w-full py-2.5 px-4 rounded-xl bg-red-50 hover:bg-red-100 text-red-600 font-bold text-xs flex items-center justify-center space-x-2 border border-red-200/80 transition-all active:scale-[0.98]"
         >
           <LogOut className="w-4 h-4" />
-          <span>Sign Out of SyllabusShelf</span>
+          <span>Sign Out of Notes Shelf</span>
         </button>
       </div>
     </div>

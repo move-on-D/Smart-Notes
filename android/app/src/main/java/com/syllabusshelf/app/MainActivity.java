@@ -13,6 +13,7 @@ import com.getcapacitor.BridgeActivity;
 
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
+import java.util.ArrayList;
 
 public class MainActivity extends BridgeActivity {
 
@@ -23,22 +24,22 @@ public class MainActivity extends BridgeActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        handleSendIntent(getIntent());
+        handleIncomingIntent(getIntent());
     }
 
     @Override
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
         setIntent(intent);
-        handleSendIntent(intent);
+        handleIncomingIntent(intent);
     }
 
-    private void handleSendIntent(Intent intent) {
+    private void handleIncomingIntent(Intent intent) {
         if (intent == null) return;
         String action = intent.getAction();
         String type = intent.getType();
 
-        if (Intent.ACTION_SEND.equals(action) && type != null) {
+        if (Intent.ACTION_SEND.equals(action)) {
             Uri fileUri = intent.getParcelableExtra(Intent.EXTRA_STREAM);
             if (fileUri == null && intent.getClipData() != null && intent.getClipData().getItemCount() > 0) {
                 fileUri = intent.getClipData().getItemAt(0).getUri();
@@ -46,6 +47,18 @@ public class MainActivity extends BridgeActivity {
 
             if (fileUri != null) {
                 processUri(fileUri, type);
+            }
+        } else if (Intent.ACTION_SEND_MULTIPLE.equals(action)) {
+            ArrayList<Uri> uris = intent.getParcelableArrayListExtra(Intent.EXTRA_STREAM);
+            if (uris != null && !uris.isEmpty()) {
+                processUri(uris.get(0), type);
+            } else if (intent.getClipData() != null && intent.getClipData().getItemCount() > 0) {
+                processUri(intent.getClipData().getItemAt(0).getUri(), type);
+            }
+        } else if (Intent.ACTION_VIEW.equals(action)) {
+            Uri dataUri = intent.getData();
+            if (dataUri != null) {
+                processUri(dataUri, type);
             }
         }
     }
@@ -55,15 +68,24 @@ public class MainActivity extends BridgeActivity {
             ContentResolver resolver = getContentResolver();
             String displayName = "shared_note.pdf";
 
-            Cursor cursor = resolver.query(uri, null, null, null, null);
-            if (cursor != null) {
-                if (cursor.moveToFirst()) {
-                    int nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME);
-                    if (nameIndex != -1) {
-                        displayName = cursor.getString(nameIndex);
+            try {
+                Cursor cursor = resolver.query(uri, null, null, null, null);
+                if (cursor != null) {
+                    if (cursor.moveToFirst()) {
+                        int nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME);
+                        if (nameIndex != -1) {
+                            String found = cursor.getString(nameIndex);
+                            if (found != null && !found.trim().isEmpty()) {
+                                displayName = found;
+                            }
+                        }
                     }
+                    cursor.close();
                 }
-                cursor.close();
+            } catch (Exception e) {
+                if (uri.getLastPathSegment() != null) {
+                    displayName = uri.getLastPathSegment();
+                }
             }
 
             InputStream inputStream = resolver.openInputStream(uri);
@@ -80,7 +102,7 @@ public class MainActivity extends BridgeActivity {
                 String base64 = Base64.encodeToString(bytes, Base64.NO_WRAP);
 
                 pendingFileName = displayName;
-                pendingMimeType = mimeType;
+                pendingMimeType = (mimeType != null && !mimeType.isEmpty()) ? mimeType : "application/pdf";
                 pendingBase64 = base64;
 
                 deliverPendingFile();
@@ -95,14 +117,17 @@ public class MainActivity extends BridgeActivity {
         runOnUiThread(() -> {
             WebView webView = getBridge() != null ? getBridge().getWebView() : null;
             if (webView != null) {
+                String safeName = escapeJs(pendingFileName);
+                String safeMime = escapeJs(pendingMimeType);
+                String safeData = pendingBase64;
+
                 String js = String.format(
+                    "window.__PENDING_SHARED_NOTE__ = { fileName: '%s', mimeType: '%s', base64Data: '%s' }; " +
                     "if (window.handleSharedFile) { window.handleSharedFile('%s', '%s', '%s'); }",
-                    escapeJs(pendingFileName),
-                    escapeJs(pendingMimeType),
-                    pendingBase64
+                    safeName, safeMime, safeData, safeName, safeMime, safeData
                 );
                 webView.evaluateJavascript(js, null);
-                // Reset after delivery
+
                 pendingFileName = null;
                 pendingMimeType = null;
                 pendingBase64 = null;

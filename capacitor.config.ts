@@ -2,7 +2,7 @@ import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
   appId: 'com.syllabusshelf.app',
-  appName: 'SyllabusShelf',
+  appName: 'Notes Shelf',
   webDir: 'dist',
   server: {
     androidScheme: 'https'

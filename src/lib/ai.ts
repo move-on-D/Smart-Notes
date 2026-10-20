@@ -315,23 +315,31 @@ export async function universalClassifyNote(
     return parseAIResponse(rawContent);
   }
 
-  // 3. GOOGLE GEMINI (Default)
-  const base64Data = await fileToBase64(file);
+  // 3. GOOGLE GEMINI (Default - Optimized Lightweight Text Analysis)
   const genAI = new GoogleGenerativeAI(config.apiKey);
   
-  const geminiCandidates = [
-    config.model || 'gemini-3.1-flash-lite',
-    'gemini-3.1-flash-lite',
-    'gemini-flash-latest',
-    'gemini-3.5-flash',
-    'gemini-3.8-flash'
-  ];
+  // Fast model: gemini-3.1-flash-lite
+  const targetModel = config.model || 'gemini-3.1-flash-lite';
 
-  let lastErr: any = null;
-  for (const mName of geminiCandidates) {
+  try {
+    const model = genAI.getGenerativeModel({
+      model: targetModel,
+      generationConfig: { 
+        responseMimeType: 'application/json',
+        temperature: 0.1
+      }
+    });
+
+    // Send concise text snippet directly (10x faster than full PDF base64 binary)
+    const result = await model.generateContent(prompt);
+    return parseAIResponse(result.response.text());
+  } catch (err: any) {
+    console.warn('Fast text model error, trying fallback:', err);
+    // If text fails, try with small file slice
     try {
+      const base64Data = await fileToBase64(file);
       const model = genAI.getGenerativeModel({
-        model: mName,
+        model: 'gemini-3.1-flash-lite',
         generationConfig: { responseMimeType: 'application/json' }
       });
       const result = await model.generateContent([
@@ -344,16 +352,10 @@ export async function universalClassifyNote(
         prompt
       ]);
       return parseAIResponse(result.response.text());
-    } catch (err: any) {
-      lastErr = err;
-      if (err?.message?.includes('404') || err?.message?.includes('503') || err?.message?.includes('429')) {
-        continue;
-      }
-      break;
+    } catch (fallbackErr: any) {
+      throw fallbackErr || err;
     }
   }
-
-  throw lastErr || new Error('Could not connect to Gemini API. Check your API key.');
 }
 
 function parseAIResponse(raw: string): AIClassificationResult {

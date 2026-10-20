@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Search, Download, ExternalLink, Trash2, BookOpen, Folder, Sparkles, Bot, Volume2 } from 'lucide-react';
+import { Search, Download, ExternalLink, Trash2, BookOpen, Folder, Sparkles, Bot } from 'lucide-react';
 import { Subject, Note } from '../types';
 
 interface ShelfViewProps {
@@ -8,7 +8,6 @@ interface ShelfViewProps {
   onDeleteNote: (noteId: string) => Promise<void>;
   onOpenUpload: () => void;
   onOpenBot: (note: Note) => void;
-  onVoiceRead: (note: Note) => void;
 }
 
 export const ShelfView: React.FC<ShelfViewProps> = ({
@@ -17,7 +16,6 @@ export const ShelfView: React.FC<ShelfViewProps> = ({
   onDeleteNote,
   onOpenUpload,
   onOpenBot,
-  onVoiceRead,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedSubjectId, setSelectedSubjectId] = useState<string>('all');
@@ -192,23 +190,15 @@ export const ShelfView: React.FC<ShelfViewProps> = ({
 
                 {/* Card Footer Actions with prominent Open Note, MOVE ON bot, and Voice Read */}
                 <div className="px-3.5 py-2.5 bg-sky-950/70 border-t border-sky-400/20 flex items-center justify-between text-xs relative z-10 backdrop-blur-md">
-                  {/* Left: Quick Study Bot & Voice Read triggers */}
+                  {/* Left: Quick Study Bot */}
                   <div className="flex items-center space-x-1">
                     <button
                       onClick={() => onOpenBot(note)}
                       title="Ask MOVE ON bot about this chapter"
-                      className="flex items-center space-x-1 px-2 py-1 rounded-lg text-[10px] font-bold bg-sky-900/60 hover:bg-cyan-500/20 text-cyan-300 border border-cyan-400/30 transition-all active:scale-95"
+                      className="flex items-center space-x-1 px-2.5 py-1 rounded-lg text-xs font-bold bg-sky-900/60 hover:bg-cyan-500/20 text-cyan-300 border border-cyan-400/30 transition-all active:scale-95 shadow-sm"
                     >
-                      <Bot className="w-3 h-3 text-cyan-300" />
+                      <Bot className="w-3.5 h-3.5 text-cyan-300" />
                       <span>MOVE ON</span>
-                    </button>
-
-                    <button
-                      onClick={() => onVoiceRead(note)}
-                      title="Listen to notes read aloud word-for-word"
-                      className="p-1 text-sky-300/70 hover:text-cyan-300 hover:bg-sky-800/40 rounded-lg transition-colors"
-                    >
-                      <Volume2 className="w-3.5 h-3.5" />
                     </button>
                   </div>
 

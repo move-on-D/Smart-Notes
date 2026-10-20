@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Send, Bot, Sparkles, BookOpen, Volume2, Square, AlertCircle } from 'lucide-react';
+import { X, Send, Bot, Sparkles, BookOpen, AlertCircle } from 'lucide-react';
 import { askMoveOnBot } from '../lib/ai';
 import { Note, Subject } from '../types';
 
@@ -8,7 +8,6 @@ interface MoveOnChatProps {
   onClose: () => void;
   selectedNote: Note | null;
   selectedSubject: Subject | null;
-  onVoiceRead?: (note: Note) => void;
 }
 
 interface Message {
@@ -22,7 +21,6 @@ export const MoveOnChat: React.FC<MoveOnChatProps> = ({
   onClose,
   selectedNote,
   selectedSubject,
-  onVoiceRead,
 }) => {
   const [messages, setMessages] = useState<Message[]>([
     {
@@ -104,24 +102,13 @@ export const MoveOnChat: React.FC<MoveOnChatProps> = ({
         </button>
       </div>
 
-      {/* Note Banner + Word-for-Word Voice Read Button */}
+      {/* Note Banner */}
       {selectedNote && (
         <div className="p-3 bg-sky-950/40 border-b border-sky-400/15 flex items-center justify-between">
           <div className="flex items-center space-x-2 truncate">
             <BookOpen className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
             <span className="text-xs text-sky-200 font-semibold truncate">{selectedNote.clean_title}</span>
           </div>
-
-          {onVoiceRead && (
-            <button
-              onClick={() => onVoiceRead(selectedNote)}
-              className="flex items-center space-x-1 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-200 border border-cyan-400/30 transition-all shrink-0 active:scale-95"
-              title="Read verbatim text word-for-word"
-            >
-              <Volume2 className="w-3 h-3 text-cyan-300" />
-              <span>Read Aloud</span>
-            </button>
-          )}
         </div>
       )}
 

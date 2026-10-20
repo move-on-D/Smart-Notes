@@ -6,7 +6,6 @@ import { UploadModal } from './components/UploadModal';
 import { SettingsModal } from './components/SettingsModal';
 import { AuthPage } from './components/AuthPage';
 import { MoveOnChat } from './components/MoveOnChat';
-import { VoiceReadModal } from './components/VoiceReadModal';
 import { Subject, Unit, Note } from './types';
 import { supabase, isSupabaseConfigured, signOutUser } from './lib/supabase';
 import { isAIConfigured } from './lib/ai';
@@ -86,11 +85,9 @@ export function App() {
   const [user, setUser] = useState<any>(null);
   const [isGuest, setIsGuest] = useState<boolean>(false);
 
-  // MOVE ON bot and Voice Read state
+  // MOVE ON bot state
   const [isBotOpen, setIsBotOpen] = useState(false);
   const [botSelectedNote, setBotSelectedNote] = useState<Note | null>(null);
-  const [isVoiceModalOpen, setIsVoiceModalOpen] = useState(false);
-  const [voiceSelectedNote, setVoiceSelectedNote] = useState<Note | null>(null);
 
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [notes, setNotes] = useState<Note[]>([]);
@@ -364,12 +361,6 @@ export function App() {
     setIsGuest(false);
   };
 
-  // Selective Voice Readout: Opens modal to read highlighted text, specific pages, or chosen sections
-  const handleVoiceRead = (note: Note) => {
-    setVoiceSelectedNote(note);
-    setIsVoiceModalOpen(true);
-  };
-
   const handleOpenBot = (note: Note) => {
     setBotSelectedNote(note);
     setIsBotOpen(true);
@@ -428,7 +419,6 @@ export function App() {
             onDeleteNote={handleDeleteNote}
             onOpenUpload={() => setActiveTab('upload')}
             onOpenBot={handleOpenBot}
-            onVoiceRead={handleVoiceRead}
           />
         )}
 
@@ -451,20 +441,12 @@ export function App() {
         )}
       </main>
 
-      {/* Selective Voice Readout Modal */}
-      <VoiceReadModal
-        isOpen={isVoiceModalOpen}
-        onClose={() => setIsVoiceModalOpen(false)}
-        note={voiceSelectedNote}
-      />
-
       {/* MOVE ON Bot Slide-out Drawer */}
       <MoveOnChat
         isOpen={isBotOpen}
         onClose={() => setIsBotOpen(false)}
         selectedNote={botSelectedNote}
         selectedSubject={subjects.find(s => s.id === botSelectedNote?.subject_id) || null}
-        onVoiceRead={handleVoiceRead}
       />
 
       {/* Clean Settings Modal (Live Credit Meter, Sign Out, Admin Reload) */}

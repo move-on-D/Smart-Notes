@@ -60,10 +60,13 @@ export const AuthPage: React.FC<AuthPageProps> = ({
       return;
     }
     try {
+      setLoading(true);
+      setError(null);
       await signInWithGoogle();
     } catch (err: any) {
       console.error(err);
       setError(err?.message || 'Google Sign-In failed.');
+      setLoading(false);
     }
   };
 

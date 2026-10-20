@@ -163,7 +163,7 @@ export function App() {
           ? supabase.from('subjects').select('*, units(*)').eq('user_id', user.id)
           : supabase.from('subjects').select('*, units(*)');
 
-        const { data: subData } = await subjectsQuery;
+        const { data: subData, error: subError } = await subjectsQuery;
 
         if (subData && subData.length > 0) {
           setSubjects(subData);
@@ -175,7 +175,7 @@ export function App() {
           ? supabase.from('notes').select('*, subject:subjects(*)').eq('user_id', user.id)
           : supabase.from('notes').select('*, subject:subjects(*)');
 
-        const { data: notesData } = await notesQuery;
+        const { data: notesData, error: notesError } = await notesQuery;
 
         if (notesData) {
           setNotes(notesData);

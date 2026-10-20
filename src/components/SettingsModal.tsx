@@ -155,7 +155,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     type="button"
                     onClick={() => {
                       setProvider(p);
-                      if (p === 'gemini') setModel('gemini-2.5-flash');
+                      if (p === 'gemini') setModel('gemini-3.1-flash-lite');
                       if (p === 'groq') setModel('llama-3.3-70b-versatile');
                       if (p === 'openai') setModel('gpt-4o-mini');
                     }}

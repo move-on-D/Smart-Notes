@@ -94,16 +94,28 @@ export function App() {
   const [loading, setLoading] = useState(true);
   const [incomingSharedFile, setIncomingSharedFile] = useState<File | null>(null);
 
-  // Monitor Supabase Authentication
+  // Monitor Authentication (Supabase + Local Fallback)
   useEffect(() => {
+    // Check local user profile first
+    const localProfile = localStorage.getItem('SN_USER_PROFILE');
+    if (localProfile) {
+      try {
+        setUser(JSON.parse(localProfile));
+      } catch (e) {
+        console.warn('Local profile parse error:', e);
+      }
+    }
+
     if (isSupabaseConfigured && supabase) {
       supabase.auth.getSession().then(({ data: { session } }) => {
-        setUser(session?.user ?? null);
+        if (session?.user) {
+          setUser(session.user);
+        }
       });
 
       const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-        setUser(session?.user ?? null);
         if (session?.user) {
+          setUser(session.user);
           setIsGuest(false);
         }
       });
@@ -356,7 +368,12 @@ export function App() {
   };
 
   const handleSignOut = async () => {
-    await signOutUser();
+    localStorage.removeItem('SN_USER_PROFILE');
+    try {
+      await signOutUser();
+    } catch (e) {
+      console.warn('Sign out notice:', e);
+    }
     setUser(null);
     setIsGuest(false);
   };
